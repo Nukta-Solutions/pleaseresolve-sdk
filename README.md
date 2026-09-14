@@ -1,9 +1,11 @@
 # @pleaseresolve/sdk
 
-Embeddable issue-reporting widget for Please Resolve. Phase 2 of
+Embeddable issue-reporting widget for Please Resolve. Phases 2–3 of
 `CLIENT_INTEGRATIONS_PLAN.md` (see that doc in `pleaseresolve-backend` for the
-full picture) — this package is the shared core; the script tag is its only
-real distribution so far, npm publishing is Phase 3.
+full picture) — this package is the shared core, consumed via the script tag,
+the npm package itself, and `@pleaseresolve/react` (a sibling package).
+Not actually published to npm yet — `"private": true` until someone decides
+to make it public (§10 of the plan doc).
 
 ## What this is
 
@@ -34,7 +36,7 @@ interchangeable.
 ## Programmatic API
 
 ```ts
-import { init, open, report, identify, setMetadata } from "@pleaseresolve/sdk";
+import { init, open, close, report, identify, setMetadata, destroy } from "@pleaseresolve/sdk";
 // or, from the script tag: window.PleaseResolve.init(...)
 
 init({ key: "pk_live_...", projectId: "...", widget: true });
@@ -49,11 +51,24 @@ await report({ title: "...", description: "...", priority: "high" });
 // Pre-fill identity on every subsequent report:
 identify({ name: "...", email: "..." });
 setMetadata({ plan: "pro" });
+
+// Tear down (React's <ReportWidget /> calls this on unmount):
+destroy();
 ```
 
 Every `report()` call (form or programmatic) auto-attaches `context`
-(current URL, user agent, viewport) — see `src/context.ts`. Screenshot and
-console-error capture are Phase 3, not built yet.
+(current URL, user agent, viewport) — see `src/context.ts`.
+
+**Screenshot capture** (`init({ screenshot: true })`, the default): the
+built-in form captures a screenshot via `html2canvas` as soon as it opens
+and shows the reporter a preview with a checkbox to include or drop it,
+checked by default — this is the consent point, so it's only ever wired up
+for the form. Headless `report()` calls never auto-attach one, on purpose.
+`html2canvas` (~200KB) is **not bundled** — it's fetched from a CDN
+(cdnjs) the first time a screenshot is actually captured, which is what
+keeps `dist/widget.global.js` itself small (see below). Console-error
+capture is still not built (Phase 5, opt-in when it lands — see the plan
+doc's privacy note on it).
 
 ## Build
 
@@ -64,7 +79,12 @@ npm run typecheck
 ```
 
 `dist/widget.global.js` is what a CDN would serve — self-contained IIFE,
-~10KB minified, well under the plan's 30KB budget.
+~12KB minified, well under the plan's 30KB budget (html2canvas stays out of
+this number — see the screenshot note above for why).
+
+See also the sibling `../pleaseresolve-sdk-react` package for React
+bindings (`<ReportWidget />`, `useReportWidget()`), which depends on this
+package's build output.
 
 ## Testing against a real backend
 
@@ -81,7 +101,9 @@ that key substituted in (the checked-in file itself keeps placeholder
 values), drives it with a real headless Chrome (clicks the trigger, fills
 and submits the form, exercises `identify()`/`report()`), verifies the
 reports actually landed in MongoDB with the right `source`/`reporter`/
-`context`, then deletes everything it created.
+`context`, confirms html2canvas genuinely loaded from cdnjs and produced a
+real screenshot, confirms that screenshot is retrievable back from S3 as an
+actual attachment on the report, then deletes everything it created.
 
 `demo/index.html` is also the manual/visual demo — open it in a real browser
 after substituting real `data-key`/`data-project` values (or just look at
