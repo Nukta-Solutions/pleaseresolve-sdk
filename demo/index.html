@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Please Resolve SDK — demo</title>
+    <style>
+      body {
+        font-family: -apple-system, sans-serif;
+        max-width: 640px;
+        margin: 60px auto;
+        padding: 0 20px;
+        color: #111827;
+      }
+      h1 { font-size: 20px; }
+      code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>Acme Customer Site</h1>
+    <p>
+      This is a stand-in for a Please Resolve customer's own website, with the
+      widget embedded via the script tag below. Click the floating
+      "Report an issue" button in the corner to try it.
+    </p>
+    <p>
+      Manual trigger for headless-style testing:
+      <button id="manual-open" type="button">Open report form</button>
+    </p>
+
+    <!--
+      The actual integration snippet, exactly as a customer would paste it.
+      Replace the two data-* values below with a real public key from
+      Settings → API Keys (keyType: "public") and its project id.
+      `data-api-base-url` is only needed to point at something other than
+      the production API (e.g. `http://localhost:5000/api/v1` for local
+      testing — see test-e2e.mjs, which substitutes real local values into
+      a copy of this file rather than editing it in place).
+    -->
+    <script
+      src="../dist/widget.global.js"
+      data-key="pk_live_your_public_key_here"
+      data-project="your_project_id_here"
+    ></script>
+
+    <script>
+      document.getElementById("manual-open").addEventListener("click", () => {
+        window.PleaseResolve.open();
+      });
+    </script>
+  </body>
+</html>

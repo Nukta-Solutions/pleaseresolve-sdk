@@ -1,0 +1,26 @@
+{
+  "name": "@pleaseresolve/sdk",
+  "version": "0.1.0",
+  "description": "Embeddable issue-reporting widget for Please Resolve — script tag today, npm package in Phase 3.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/sdk.cjs",
+  "module": "./dist/sdk.js",
+  "types": "./dist/sdk.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/sdk.d.ts",
+      "import": "./dist/sdk.js",
+      "require": "./dist/sdk.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  }
+}
