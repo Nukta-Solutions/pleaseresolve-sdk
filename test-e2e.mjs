@@ -82,8 +82,12 @@ async function cleanup({ apiKeyId }) {
   mongoEval(
     `const ids = db.reports.find({title: /^E2E:/}).toArray().map(r => r._id); ` +
       `print(JSON.stringify(db.report_activities.deleteMany({reportId: {$in: ids}}))); ` +
+      `print(JSON.stringify(db.report_attachments.deleteMany({reportId: {$in: ids}}))); ` +
       `print(JSON.stringify(db.reports.deleteMany({_id: {$in: ids}})));`,
   );
+  // The S3 object itself (a few KB test screenshot) is deliberately left in
+  // place — deleting it needs the same S3FileService the backend uses, not
+  // worth wiring up here for a throwaway test file in report-attachments/.
   // The dashboard API only revokes (`isRevoked: true`), it never hard-deletes
   // — correct for a real customer's audit trail, but this key exists only
   // for this test run, so remove the row entirely rather than leave a
@@ -158,14 +162,31 @@ async function run() {
         .shadowRoot.querySelector(".pr-trigger")
         .click();
     });
-    await new Promise((r) => setTimeout(r, 200));
-    const formOpen = await page.evaluate(() => {
-      const overlay = document
-        .querySelector("[data-pleaseresolve-widget]")
-        .shadowRoot.querySelector(".pr-overlay");
-      return overlay && !overlay.hidden;
+    // `open()` now awaits screenshot capture (CDN fetch + html2canvas
+    // render) *before* the form itself renders — see widget.ts — so this
+    // has to wait for the actual form fields, not a fixed timeout.
+    await page.waitForFunction(
+      () =>
+        !!document
+          .querySelector("[data-pleaseresolve-widget]")
+          .shadowRoot.querySelector('input[id^="pr-title-"]'),
+      { timeout: 8000 },
+    );
+    console.log("2. Form opened on click (after screenshot capture): true");
+
+    const screenshotState = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const checkbox = root.querySelector(".pr-checkbox-label input");
+      const preview = root.querySelector(".pr-screenshot-preview");
+      return {
+        html2canvasLoadedGlobally: !!window.html2canvas,
+        checkboxPresent: !!checkbox,
+        checkboxChecked: checkbox?.checked,
+        previewImagePresent: !!preview,
+        previewSrcIsBlob: preview?.src?.startsWith("blob:"),
+      };
     });
-    console.log("2. Form opened on click:", formOpen);
+    console.log("2b. Screenshot capture pipeline:", screenshotState);
 
     await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
@@ -178,6 +199,7 @@ async function run() {
       set('textarea[id^="pr-description-"]', "Automated E2E test submission.");
       set('input[id^="pr-name-"]', "Jane Doe");
       set('input[id^="pr-email-"]', "jane@client-site.example");
+      // Screenshot checkbox left checked (default) — submitting with it on.
       root.querySelector("form").requestSubmit();
     });
 
@@ -202,6 +224,18 @@ async function run() {
       `db.reports.find({title: /^E2E:/}).forEach(r => print(r.title + " | source=" + r.source + " | reporter=" + JSON.stringify(r.externalMeta.publicWidget.reporter)))`,
     );
     console.log("5. Verified in database:\n" + dbCheck.trim());
+
+    const attachmentCheck = mongoEval(
+      `const r = db.reports.findOne({title: "E2E: checkout button unresponsive"}); ` +
+        `const a = db.report_attachments.findOne({reportId: r._id}); ` +
+        `print(a ? ("attachment: " + a.mimeType + ", " + a.size + " bytes, " + a.url) : "NO ATTACHMENT FOUND");`,
+    );
+    console.log("6. Screenshot attachment on the report:\n" + attachmentCheck.trim());
+    const s3Url = attachmentCheck.match(/https:\/\/\S+/)?.[0];
+    if (s3Url) {
+      const s3Check = await fetch(s3Url);
+      console.log(`7. Screenshot actually retrievable from S3: ${s3Check.status}`);
+    }
 
     if (consoleErrors.length) {
       console.log("\nConsole errors (favicon 404 is expected/harmless):", consoleErrors);

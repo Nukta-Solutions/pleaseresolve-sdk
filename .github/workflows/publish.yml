@@ -1,0 +1,36 @@
+name: Publish @pleaseresolve/sdk
+
+# Triggered by a version tag (e.g. `git tag v0.2.0 && git push --tags`), not
+# every push — publishing is a deliberate, versioned act, not a side effect
+# of merging. Requires two things this file can't set up by itself:
+#   1. `"private": true` removed from package.json (deliberately left on
+#      until someone actually decides to make this public — see
+#      CLIENT_INTEGRATIONS_PLAN.md §6).
+#   2. An `NPM_TOKEN` repo secret (an npm automation token with publish
+#      rights on the @pleaseresolve org) — npm won't accept `--provenance`
+#      from anything but a supported CI's OIDC token, which is exactly what
+#      `id-token: write` below grants this workflow.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # required for `npm publish --provenance`
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

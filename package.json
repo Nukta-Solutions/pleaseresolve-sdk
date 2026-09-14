@@ -2,11 +2,14 @@
   "name": "@pleaseresolve/sdk",
   "version": "0.1.0",
   "description": "Embeddable issue-reporting widget for Please Resolve — script tag today, npm package in Phase 3.",
+  "license": "MIT",
+  "keywords": ["please-resolve", "bug-report", "issue-tracker", "widget", "feedback"],
   "private": true,
   "type": "module",
   "main": "./dist/sdk.cjs",
   "module": "./dist/sdk.js",
   "types": "./dist/sdk.d.ts",
+  "files": ["dist", "README.md"],
   "exports": {
     ".": {
       "types": "./dist/sdk.d.ts",
@@ -14,12 +17,14 @@
       "require": "./dist/sdk.cjs"
     }
   },
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "html2canvas": "^1.4.1",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   }

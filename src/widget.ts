@@ -1,10 +1,17 @@
 import type { ReportInput, ReportPriority, Reporter } from "./types";
 
 export interface WidgetHandlers {
-  onSubmit: (input: ReportInput) => Promise<{ id: string }>;
+  onSubmit: (input: ReportInput, screenshot?: Blob) => Promise<{ id: string }>;
   getReporter: () => Reporter | undefined;
   /** Called with the form's name/email fields right before `onSubmit`, if either was filled in. */
   setReporter: (reporter: Reporter) => void;
+  /**
+   * Present only when `init({ screenshot: false })` wasn't set. Kicked off
+   * as soon as the form opens (not on submit) so the reporter sees the
+   * preview and can opt out *before* anything is sent — headless `report()`
+   * never gets this at all, on purpose (see types.ts's `screenshot` doc).
+   */
+  captureScreenshot?: () => Promise<Blob | undefined>;
 }
 
 export interface WidgetHandle {
@@ -124,6 +131,25 @@ const STYLES = `
   padding: 4px;
 }
 .pr-close:hover { color: #374151; }
+
+.pr-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+.pr-checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6366f1; }
+.pr-screenshot-preview {
+  display: block;
+  margin-top: 8px;
+  max-width: 100%;
+  max-height: 120px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  object-fit: cover;
+}
 `;
 
 /**
@@ -161,6 +187,10 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   panel.className = "pr-panel";
   panel.style.position = "relative";
   overlay.appendChild(panel);
+
+  let screenshotBlob: Blob | undefined;
+  let screenshotUrl: string | undefined;
+  let includeScreenshot = true;
 
   function render() {
     panel.innerHTML = "";
@@ -217,6 +247,10 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     form.appendChild(emailField.wrapper);
     if (reporter?.email) (emailField.el as HTMLInputElement).value = reporter.email;
 
+    if (handlers.captureScreenshot) {
+      form.appendChild(buildScreenshotField());
+    }
+
     const actions = document.createElement("div");
     actions.className = "pr-actions";
     const cancelBtn = document.createElement("button");
@@ -252,12 +286,15 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       }
 
       handlers
-        .onSubmit({
-          title: titleValue,
-          description:
-            (descField.el as HTMLTextAreaElement).value.trim() || undefined,
-          priority: (priorityField.el as HTMLSelectElement).value as ReportPriority,
-        })
+        .onSubmit(
+          {
+            title: titleValue,
+            description:
+              (descField.el as HTMLTextAreaElement).value.trim() || undefined,
+            priority: (priorityField.el as HTMLSelectElement).value as ReportPriority,
+          },
+          includeScreenshot ? screenshotBlob : undefined,
+        )
         .then(() => {
           renderSuccess();
         })
@@ -347,9 +384,70 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     return { wrapper, el };
   }
 
-  function open() {
-    render();
+  /**
+   * The consent point (types.ts's `screenshot` doc): the reporter sees
+   * exactly what was captured and can uncheck it before anything is sent —
+   * this is why capture only ever happens for the form, never for headless
+   * `report()` calls.
+   */
+  function buildScreenshotField(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pr-field pr-screenshot-field";
+
+    const label = document.createElement("label");
+    label.className = "pr-checkbox-label";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = includeScreenshot && !!screenshotUrl;
+    checkbox.disabled = !screenshotUrl;
+    checkbox.addEventListener("change", () => {
+      includeScreenshot = checkbox.checked;
+    });
+    const text = document.createElement("span");
+    text.textContent = screenshotUrl
+      ? "Include a screenshot of this page"
+      : "Screenshot unavailable for this page";
+    label.appendChild(checkbox);
+    label.appendChild(text);
+    wrapper.appendChild(label);
+
+    if (screenshotUrl) {
+      const img = document.createElement("img");
+      img.className = "pr-screenshot-preview";
+      img.src = screenshotUrl;
+      img.alt = "Captured screenshot preview";
+      wrapper.appendChild(img);
+    }
+
+    return wrapper;
+  }
+
+  async function open() {
+    // Capture *before* the form (with its text inputs) renders at all,
+    // rather than kicking it off and re-rendering when it resolves — a
+    // re-render mid-capture would wipe out anything the reporter had
+    // already started typing. html2canvas is fast enough on a real page
+    // that this reads as a normal open, not a stall.
     overlay.hidden = false;
+    panel.innerHTML = "";
+    const loading = document.createElement("p");
+    loading.className = "pr-subtitle";
+    loading.style.textAlign = "center";
+    loading.style.padding = "24px 0";
+    loading.textContent = "Loading…";
+    panel.appendChild(loading);
+
+    if (screenshotUrl) URL.revokeObjectURL(screenshotUrl);
+    screenshotBlob = undefined;
+    screenshotUrl = undefined;
+    if (handlers.captureScreenshot) {
+      // Re-captured on every open, not cached — the page may have changed
+      // since the reporter last opened the form, and staleness here is
+      // worse than the small extra cost of doing it again.
+      screenshotBlob = await handlers.captureScreenshot();
+      if (screenshotBlob) screenshotUrl = URL.createObjectURL(screenshotBlob);
+    }
+    render();
   }
 
   function close() {
@@ -369,6 +467,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   document.addEventListener("keydown", onKeydown);
 
   function destroy() {
+    if (screenshotUrl) URL.revokeObjectURL(screenshotUrl);
     document.removeEventListener("keydown", onKeydown);
     host.remove();
   }
