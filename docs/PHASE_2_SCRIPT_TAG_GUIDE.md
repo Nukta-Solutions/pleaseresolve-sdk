@@ -37,7 +37,7 @@ for why.
 
 ```html
 <script
-  src="https://cdn.pleaseresolve.app/widget.js"
+  src="https://nukta-solutions.github.io/pleaseresolve-sdk/widget.js"
   data-key="pk_live_..."
   data-project="..."
 ></script>
@@ -78,7 +78,7 @@ appears in the bottom-right corner of every page it's on.
 If you'd rather use your own "Report a problem" button instead of the floating one:
 
 ```html
-<script src="https://cdn.pleaseresolve.app/widget.js" data-key="pk_live_..." data-widget="false"></script>
+<script src="https://nukta-solutions.github.io/pleaseresolve-sdk/widget.js" data-key="pk_live_..." data-widget="false"></script>
 <button onclick="window.PleaseResolve.open()">Report a problem</button>
 ```
 

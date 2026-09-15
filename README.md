@@ -11,7 +11,7 @@ into your [Please Resolve](https://pleaseresolve.nukta.solutions) dashboard. No 
 account required on the visitor's side.
 
 ```html
-<script src="https://cdn.pleaseresolve.app/widget.js" data-key="pk_live_..." data-project="..."></script>
+<script src="https://nukta-solutions.github.io/pleaseresolve-sdk/widget.js" data-key="pk_live_..." data-project="..."></script>
 ```
 
 ![Support widget preview](docs/preview.png)
@@ -58,7 +58,7 @@ anyone can view; see [Security model](#security-model).
 
 ```html
 <script
-  src="https://cdn.pleaseresolve.app/widget.js"
+  src="https://nukta-solutions.github.io/pleaseresolve-sdk/widget.js"
   data-key="pk_live_..."
   data-project="..."
 ></script>
