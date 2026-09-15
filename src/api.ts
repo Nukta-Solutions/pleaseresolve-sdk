@@ -4,8 +4,8 @@ export interface SubmitPayload extends ReportInput {
   projectId?: string;
   reporter?: Reporter;
   context?: CapturedContext;
-  /** From `captureScreenshot()` (Phase 3) — switches the request to `multipart/form-data`. */
-  screenshot?: Blob;
+  /** From the built-in form's attachment dropzone (widget.ts) — switches the request to `multipart/form-data`. */
+  attachments?: File[];
 }
 
 export class PleaseResolveApiError extends Error {
@@ -24,27 +24,29 @@ export class PleaseResolveApiError extends Error {
  * see CLIENT_INTEGRATIONS_PLAN.md §3.2 for the payload shape and
  * pleaseresolve-backend/src/modules/public-report/ for the server side.
  *
- * Plain JSON when there's no screenshot (the common case); `multipart/
- * form-data` with a `payload` field (same JSON, stringified) + a
- * `screenshot` file field otherwise — mirrors the legacy external API's
- * identical "JSON body, or a `payload` field alongside real files" split,
- * which the backend's `public-report.controller.ts` branches on the same
- * way.
+ * Plain JSON when there are no attachments (the common case, and always
+ * true for headless `report()` calls); `multipart/form-data` with a
+ * `payload` field (same JSON, stringified) + one or more `attachments`
+ * file fields otherwise — mirrors the legacy external API's identical
+ * "JSON body, or a `payload` field alongside real files" split, which the
+ * backend's `public-report.controller.ts` branches on the same way.
  */
 export async function submitReport(
   apiBaseUrl: string,
   apiKey: string,
   payload: SubmitPayload,
 ): Promise<{ id: string }> {
-  const { screenshot, ...jsonFields } = payload;
+  const { attachments, ...jsonFields } = payload;
   const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports`;
 
   let res: Response;
   try {
-    if (screenshot) {
+    if (attachments && attachments.length > 0) {
       const form = new FormData();
       form.append("payload", JSON.stringify(jsonFields));
-      form.append("screenshot", screenshot, "screenshot.png");
+      for (const file of attachments) {
+        form.append("attachments", file, file.name);
+      }
       res = await fetch(url, {
         method: "POST",
         headers: { "X-Api-Key": apiKey },

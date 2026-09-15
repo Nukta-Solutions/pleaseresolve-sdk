@@ -1,19 +1,9 @@
-import type { ReportInput, ReportPriority, Reporter } from "./types";
+import type { ReportInput, ReportPriority } from "./types";
 import type { ReportStatusSummary } from "./api";
 import type { TrackedReport } from "./storage";
 
 export interface WidgetHandlers {
-  onSubmit: (input: ReportInput, screenshot?: Blob) => Promise<{ id: string }>;
-  getReporter: () => Reporter | undefined;
-  /** Called with the form's name/email fields right before `onSubmit`, if either was filled in. */
-  setReporter: (reporter: Reporter) => void;
-  /**
-   * Present only when `init({ screenshot: false })` wasn't set. Kicked off
-   * as soon as the form opens (not on submit) so the reporter sees the
-   * preview and can opt out *before* anything is sent — headless `report()`
-   * never gets this at all, on purpose (see types.ts's `screenshot` doc).
-   */
-  captureScreenshot?: () => Promise<Blob | undefined>;
+  onSubmit: (input: ReportInput, attachments: File[]) => Promise<{ id: string }>;
   /** This browser's own submission history — see storage.ts. Sync; it's a plain localStorage read. */
   getTrackedReports: () => TrackedReport[];
   /** Live status for one tracked report — see api.ts's `fetchReport`. */
@@ -26,11 +16,13 @@ export interface WidgetHandle {
   destroy: () => void;
 }
 
+// Matches llemr's own GlobalReportDropdown exactly — Low/Medium/High only,
+// no Urgent/Critical (the widget's UI intentionally mirrors that form 1:1;
+// see this file's top-level doc comment).
 const PRIORITIES: { value: ReportPriority; label: string }[] = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
 ];
 
 /** Maps the backend's `ReportStatus` (report.constants.ts) to a label + badge tone. */
@@ -55,6 +47,15 @@ const PLUS_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" x
 const EYE_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M1 7.5C2.2 4.5 4.6 2.7 7.5 2.7C10.4 2.7 12.8 4.5 14 7.5C12.8 10.5 10.4 12.3 7.5 12.3C4.6 12.3 2.2 10.5 1 7.5Z" stroke="currentColor" stroke-width="1.4"/>
   <circle cx="7.5" cy="7.5" r="2.1" stroke="currentColor" stroke-width="1.4"/>
+</svg>`;
+
+const UPLOAD_ICON = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M10 13V3M10 3L6 7M10 3L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M3 13V15.5C3 16.3284 3.67157 17 4.5 17H15.5C16.3284 17 17 16.3284 17 15.5V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>`;
+
+const X_ICON = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 </svg>`;
 
 const STYLES = `
@@ -125,7 +126,7 @@ const STYLES = `
 
 .pr-panel {
   width: 100%;
-  max-width: 400px;
+  max-width: 640px;
   max-height: calc(100vh - 32px);
   overflow-y: auto;
   background: #fff;
@@ -192,24 +193,61 @@ const STYLES = `
 }
 .pr-close:hover { color: #374151; }
 
-.pr-checkbox-label {
+.pr-required { color: #ef4444; }
+
+.pr-dropzone {
+  cursor: pointer;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pr-dropzone:hover, .pr-dropzone.pr-dropzone-active {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.05);
+}
+.pr-dropzone-inner {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
+  color: #475569;
   font-size: 13px;
-  color: #374151;
-  cursor: pointer;
 }
-.pr-checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6366f1; }
-.pr-screenshot-preview {
-  display: block;
-  margin-top: 8px;
-  max-width: 100%;
-  max-height: 120px;
+.pr-dropzone input[type="file"] { display: none; }
+
+.pr-file-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 128px;
+  overflow: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  object-fit: cover;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
 }
+.pr-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.pr-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-file-remove {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.pr-file-remove:hover { color: #ef4444; }
 
 .pr-issue-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .pr-issue-row {
@@ -323,9 +361,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   issuesPanel.style.position = "relative";
   issuesOverlay.appendChild(issuesPanel);
 
-  let screenshotBlob: Blob | undefined;
-  let screenshotUrl: string | undefined;
-  let includeScreenshot = true;
+  let attachedFiles: File[] = [];
 
   function closeMenu() {
     menu.hidden = true;
@@ -351,11 +387,6 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     title.textContent = "Create New Issue";
     panel.appendChild(title);
 
-    const subtitle = document.createElement("p");
-    subtitle.className = "pr-subtitle";
-    subtitle.textContent = "Let us know what went wrong — we'll take it from here.";
-    panel.appendChild(subtitle);
-
     const errorBox = document.createElement("div");
     errorBox.className = "pr-error";
     errorBox.hidden = true;
@@ -364,30 +395,15 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     const form = document.createElement("form");
     panel.appendChild(form);
 
-    const reporter = handlers.getReporter();
-
     const titleField = fieldInput("title", "Issue Title", "input", true);
     const descField = fieldInput("description", "Description", "textarea", false);
     form.appendChild(titleField.wrapper);
     form.appendChild(descField.wrapper);
 
-    const row = document.createElement("div");
-    row.className = "pr-row";
     const priorityField = fieldSelect();
-    const nameField = fieldInput("name", "Your name (optional)", "input", false);
-    row.appendChild(priorityField.wrapper);
-    row.appendChild(nameField.wrapper);
-    form.appendChild(row);
-    if (reporter?.name) (nameField.el as HTMLInputElement).value = reporter.name;
+    form.appendChild(priorityField.wrapper);
 
-    const emailField = fieldInput("email", "Your email (optional)", "input", false);
-    (emailField.el as HTMLInputElement).type = "email";
-    form.appendChild(emailField.wrapper);
-    if (reporter?.email) (emailField.el as HTMLInputElement).value = reporter.email;
-
-    if (handlers.captureScreenshot) {
-      form.appendChild(buildScreenshotField());
-    }
+    form.appendChild(buildAttachmentField());
 
     const actions = document.createElement("div");
     actions.className = "pr-actions";
@@ -417,12 +433,6 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       submitBtn.disabled = true;
       submitBtn.textContent = "Submitting…";
 
-      const name = (nameField.el as HTMLInputElement).value.trim();
-      const email = (emailField.el as HTMLInputElement).value.trim();
-      if (name || email) {
-        handlers.setReporter({ name: name || undefined, email: email || undefined });
-      }
-
       handlers
         .onSubmit(
           {
@@ -431,7 +441,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
               (descField.el as HTMLTextAreaElement).value.trim() || undefined,
             priority: (priorityField.el as HTMLSelectElement).value as ReportPriority,
           },
-          includeScreenshot ? screenshotBlob : undefined,
+          attachedFiles,
         )
         .then(() => {
           renderSuccess();
@@ -488,6 +498,12 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     const labelEl = document.createElement("label");
     labelEl.className = "pr-label";
     labelEl.textContent = label;
+    if (required) {
+      const asterisk = document.createElement("span");
+      asterisk.className = "pr-required";
+      asterisk.textContent = " *";
+      labelEl.appendChild(asterisk);
+    }
     const id = `pr-${name}-${Math.random().toString(36).slice(2, 8)}`;
     labelEl.setAttribute("for", id);
     const el = document.createElement(tag);
@@ -523,69 +539,98 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   }
 
   /**
-   * The consent point (types.ts's `screenshot` doc): the reporter sees
-   * exactly what was captured and can uncheck it before anything is sent —
-   * this is why capture only ever happens for the form, never for headless
-   * `report()` calls.
+   * A real drag-and-drop/click-to-browse multi-file attachment field —
+   * matches llemr's `GlobalReportDropdown` attachment UI exactly (this
+   * widget's whole form is a deliberate 1:1 visual clone of it, see this
+   * file's top-level doc comment). Replaces the auto-captured-screenshot
+   * consent flow an earlier version of this widget had: this widget has no
+   * way to know what the reporter's page looks like without asking for a
+   * manual attachment, same as llemr's own form never captures one either.
    */
-  function buildScreenshotField(): HTMLElement {
+  function buildAttachmentField(): HTMLElement {
     const wrapper = document.createElement("div");
-    wrapper.className = "pr-field pr-screenshot-field";
+    wrapper.className = "pr-field";
 
     const label = document.createElement("label");
-    label.className = "pr-checkbox-label";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = includeScreenshot && !!screenshotUrl;
-    checkbox.disabled = !screenshotUrl;
-    checkbox.addEventListener("change", () => {
-      includeScreenshot = checkbox.checked;
-    });
-    const text = document.createElement("span");
-    text.textContent = screenshotUrl
-      ? "Include a screenshot of this page"
-      : "Screenshot unavailable for this page";
-    label.appendChild(checkbox);
-    label.appendChild(text);
+    label.className = "pr-label";
+    label.textContent = "Attachment (Optional)";
     wrapper.appendChild(label);
 
-    if (screenshotUrl) {
-      const img = document.createElement("img");
-      img.className = "pr-screenshot-preview";
-      img.src = screenshotUrl;
-      img.alt = "Captured screenshot preview";
-      wrapper.appendChild(img);
+    const dropzone = document.createElement("div");
+    dropzone.className = "pr-dropzone";
+    const inner = document.createElement("div");
+    inner.className = "pr-dropzone-inner";
+    inner.innerHTML = `${UPLOAD_ICON}<span>Drop files here or click to browse</span>`;
+    dropzone.appendChild(inner);
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.multiple = true;
+    dropzone.appendChild(fileInput);
+    wrapper.appendChild(dropzone);
+
+    const list = document.createElement("ul");
+    list.className = "pr-file-list";
+    list.hidden = true;
+    wrapper.appendChild(list);
+
+    function renderFileList() {
+      list.innerHTML = "";
+      list.hidden = attachedFiles.length === 0;
+      attachedFiles.forEach((file, index) => {
+        const item = document.createElement("li");
+        item.className = "pr-file-item";
+        const name = document.createElement("span");
+        name.className = "pr-file-name";
+        name.textContent = file.name;
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "pr-file-remove";
+        removeBtn.innerHTML = X_ICON;
+        removeBtn.setAttribute("aria-label", `Remove ${file.name}`);
+        removeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          attachedFiles = attachedFiles.filter((_, i) => i !== index);
+          renderFileList();
+        });
+        item.appendChild(name);
+        item.appendChild(removeBtn);
+        list.appendChild(item);
+      });
     }
 
+    function addFiles(files: FileList | null) {
+      if (!files || files.length === 0) return;
+      attachedFiles = [...attachedFiles, ...Array.from(files)];
+      renderFileList();
+    }
+
+    dropzone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      addFiles(fileInput.files);
+      fileInput.value = "";
+    });
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("pr-dropzone-active");
+    });
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("pr-dropzone-active");
+    });
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("pr-dropzone-active");
+      addFiles(e.dataTransfer?.files ?? null);
+    });
+
+    renderFileList();
     return wrapper;
   }
 
-  async function open() {
+  function open() {
     closeMenu();
-    // Capture *before* the form (with its text inputs) renders at all,
-    // rather than kicking it off and re-rendering when it resolves — a
-    // re-render mid-capture would wipe out anything the reporter had
-    // already started typing. html2canvas is fast enough on a real page
-    // that this reads as a normal open, not a stall.
     overlay.hidden = false;
-    panel.innerHTML = "";
-    const loading = document.createElement("p");
-    loading.className = "pr-subtitle";
-    loading.style.textAlign = "center";
-    loading.style.padding = "24px 0";
-    loading.textContent = "Loading…";
-    panel.appendChild(loading);
-
-    if (screenshotUrl) URL.revokeObjectURL(screenshotUrl);
-    screenshotBlob = undefined;
-    screenshotUrl = undefined;
-    if (handlers.captureScreenshot) {
-      // Re-captured on every open, not cached — the page may have changed
-      // since the reporter last opened the form, and staleness here is
-      // worse than the small extra cost of doing it again.
-      screenshotBlob = await handlers.captureScreenshot();
-      if (screenshotBlob) screenshotUrl = URL.createObjectURL(screenshotBlob);
-    }
+    attachedFiles = [];
     render();
   }
 
@@ -721,7 +766,6 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   document.addEventListener("click", onDocumentClick);
 
   function destroy() {
-    if (screenshotUrl) URL.revokeObjectURL(screenshotUrl);
     document.removeEventListener("keydown", onKeydown);
     document.removeEventListener("click", onDocumentClick);
     host.remove();

@@ -1,6 +1,5 @@
 import { captureContext } from "./context";
 import { fetchReport, submitReport } from "./api";
-import { captureScreenshot } from "./screenshot";
 import { getTrackedReports, trackReport } from "./storage";
 import { mountWidget, type WidgetHandle } from "./widget";
 import type { InitOptions, ReportInput, Reporter } from "./types";
@@ -58,13 +57,7 @@ export function init(options: InitOptions): void {
 
   if (options.widget !== false) {
     state.widget = mountWidget({
-      onSubmit: (input, screenshot) => submit(input, screenshot),
-      getReporter: () => state?.reporter,
-      setReporter: (reporter) => identify(reporter),
-      // Only the form ever gets this — the reporter sees the preview and
-      // can opt out before anything is sent (widget.ts's consent point).
-      // Headless `report()` below never captures one at all.
-      captureScreenshot: options.screenshot !== false ? captureScreenshot : undefined,
+      onSubmit: (input, attachments) => submit(input, attachments),
       getTrackedReports: () => getTrackedReports(requireState().key),
       fetchReportStatus: (id) => {
         const s = requireState();
@@ -74,7 +67,7 @@ export function init(options: InitOptions): void {
   }
 }
 
-async function submit(input: ReportInput, screenshot?: Blob): Promise<{ id: string }> {
+async function submit(input: ReportInput, attachments?: File[]): Promise<{ id: string }> {
   const s = requireState();
   const context = typeof window !== "undefined" ? captureContext() : undefined;
 
@@ -84,7 +77,7 @@ async function submit(input: ReportInput, screenshot?: Blob): Promise<{ id: stri
     reporter: s.reporter,
     context,
     metadata: { ...s.metadata, ...input.metadata },
-    screenshot,
+    attachments,
   });
 
   // Tracked for both the form and headless `report()` calls — "View Issues"
@@ -99,7 +92,7 @@ async function submit(input: ReportInput, screenshot?: Blob): Promise<{ id: stri
   return result;
 }
 
-/** Submits directly — headless mode's programmatic path. Never auto-attaches a screenshot (see `screenshot` on `InitOptions`); only the built-in form's consent-gated capture does. */
+/** Submits directly — headless mode's programmatic path. Never attaches files (only the built-in form's attachment dropzone, widget.ts, can). */
 export async function report(input: ReportInput): Promise<{ id: string }> {
   return submit(input);
 }

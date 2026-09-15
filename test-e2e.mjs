@@ -10,7 +10,7 @@
 // the backend's `mongo` container (both already true in this dev setup).
 import { execSync } from "node:child_process";
 import { createServer } from "node:http";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
@@ -177,9 +177,6 @@ async function run() {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
       root.querySelectorAll(".pr-menu-item")[0].click(); // "New Issue"
     });
-    // `open()` now awaits screenshot capture (CDN fetch + html2canvas
-    // render) *before* the form itself renders — see widget.ts — so this
-    // has to wait for the actual form fields, not a fixed timeout.
     await page.waitForFunction(
       () =>
         !!document
@@ -189,19 +186,23 @@ async function run() {
     );
     console.log("3. New Issue form opened from the menu: true");
 
-    const screenshotState = await page.evaluate(() => {
+    // Real file attachment via the dropzone's hidden <input type="file"> —
+    // matches how a reporter clicking "browse" actually selects a file
+    // (puppeteer's uploadFile() drives the same input the click-to-browse
+    // path uses, see widget.ts's buildAttachmentField).
+    const attachmentPath = join(ROOT, ".e2e-test-attachment.txt");
+    await writeFile(attachmentPath, "E2E test attachment contents.");
+    const fileInputHandle = await page.evaluateHandle(() =>
+      document.querySelector("[data-pleaseresolve-widget]").shadowRoot.querySelector('input[type="file"]'),
+    );
+    await fileInputHandle.uploadFile(attachmentPath);
+    await fileInputHandle.evaluate((el) => el.dispatchEvent(new Event("change", { bubbles: true })));
+    const fileListState = await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-      const checkbox = root.querySelector(".pr-checkbox-label input");
-      const preview = root.querySelector(".pr-screenshot-preview");
-      return {
-        html2canvasLoadedGlobally: !!window.html2canvas,
-        checkboxPresent: !!checkbox,
-        checkboxChecked: checkbox?.checked,
-        previewImagePresent: !!preview,
-        previewSrcIsBlob: preview?.src?.startsWith("blob:"),
-      };
+      const items = [...root.querySelectorAll(".pr-file-item .pr-file-name")].map((el) => el.textContent);
+      return { fileListVisible: !root.querySelector(".pr-file-list").hidden, items };
     });
-    console.log("3b. Screenshot capture pipeline:", screenshotState);
+    console.log("3b. Attachment dropzone — file added:", fileListState);
 
     await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
@@ -212,9 +213,6 @@ async function run() {
       };
       set('input[id^="pr-title-"]', "E2E: checkout button unresponsive");
       set('textarea[id^="pr-description-"]', "Automated E2E test submission.");
-      set('input[id^="pr-name-"]', "Jane Doe");
-      set('input[id^="pr-email-"]', "jane@client-site.example");
-      // Screenshot checkbox left checked (default) — submitting with it on.
       root.querySelector("form").requestSubmit();
     });
 
@@ -245,7 +243,8 @@ async function run() {
         `const a = db.report_attachments.findOne({reportId: r._id}); ` +
         `print(a ? ("attachment: " + a.mimeType + ", " + a.size + " bytes, " + a.url) : "NO ATTACHMENT FOUND");`,
     );
-    console.log("7. Screenshot attachment on the report:\n" + attachmentCheck.trim());
+    console.log("7. Dropzone attachment on the report:\n" + attachmentCheck.trim());
+    await rm(attachmentPath);
     const s3Url = attachmentCheck.match(/https:\/\/\S+/)?.[0];
     if (s3Url) {
       const s3Check = await fetch(s3Url);

@@ -22,15 +22,6 @@ export interface InitOptions {
   apiBaseUrl?: string;
   /** Default `true` — mounts the built-in floating button + form. Set `false` to drive everything from your own UI via `open()`/`report()`. */
   widget?: boolean;
-  /**
-   * Default `true` — the built-in form captures a screenshot on open (via
-   * `html2canvas`) and shows the reporter a preview with a checkbox to
-   * include or drop it, checked by default. Has no effect on headless
-   * `report()` calls, which never auto-attach a screenshot — only the
-   * form does, since only there does the person being screenshotted see
-   * and consent to it before it's sent.
-   */
-  screenshot?: boolean;
 }
 
 export interface CapturedContext {
