@@ -4,7 +4,12 @@
   "description": "Embeddable issue-reporting widget for Please Resolve — script tag today, npm package in Phase 3.",
   "license": "MIT",
   "keywords": ["please-resolve", "bug-report", "issue-tracker", "widget", "feedback"],
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nukta-Solutions/pleaseresolve-sdk.git"
+  },
+  "homepage": "https://github.com/Nukta-Solutions/pleaseresolve-sdk#readme",
+  "bugs": "https://github.com/Nukta-Solutions/pleaseresolve-sdk/issues",
   "type": "module",
   "main": "./dist/sdk.cjs",
   "module": "./dist/sdk.js",
