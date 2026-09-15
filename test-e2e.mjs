@@ -288,12 +288,28 @@ async function run() {
         return {
           reported: cells[0].textContent,
           title: cells[1].textContent,
-          priority: cells[2].textContent,
-          status: cells[3].textContent,
+          submittedBy: cells[2].textContent,
+          priority: cells[3].textContent,
+          status: cells[4].textContent,
+          dueDate: cells[5].textContent,
         };
       });
     });
     console.log("9. View Issues table, tracked + live status:", issuesState);
+
+    // Action column's View button — expands an inline detail row with the
+    // report's description (the one extra field beyond the table columns
+    // themselves; see public-report.service.ts's getById doc comment for
+    // exactly what is/isn't exposed through this read).
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      root.querySelector("[data-view-id]").click();
+    });
+    const detailState = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      return root.querySelector(".pr-detail-row")?.textContent.trim();
+    });
+    console.log("9b. Action 'View' expanded description:", detailState);
 
     // Search filter — client-side, over the same rows just rendered.
     await page.evaluate(() => {
@@ -306,7 +322,7 @@ async function run() {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
       return [...root.querySelectorAll("tbody tr td.pr-table-title")].map((td) => td.textContent);
     });
-    console.log("9b. Search filter ('programmatic'):", filteredState);
+    console.log("9c. Search filter ('programmatic'):", filteredState);
 
     if (consoleErrors.length) {
       console.log("\nConsole errors (favicon 404 is expected/harmless):", consoleErrors);

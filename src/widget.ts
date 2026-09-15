@@ -162,6 +162,10 @@ const STYLES = `
   padding: 20px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
+/* The Issues table has more columns than the New Issue form has fields
+   (Reported/Report Title/Submitted by/Priority/Status/Due Date/Action,
+   matching llemr's real admin/reports page exactly) — needs real room. */
+.pr-panel-wide { max-width: 960px; }
 .pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #0f172a; }
 .pr-subtitle { margin: 0 0 16px; font-size: 13px; color: #6b7280; }
 .pr-form-divider { border-top: 1px solid #e2e8f0; margin-top: 16px; padding-top: 16px; }
@@ -392,6 +396,28 @@ const STYLES = `
 .pr-badge-primary { background: rgba(155, 95, 151, 0.16); color: #9b5f97; }
 .pr-badge-resolved { background: #ede9fe; color: #6d28d9; }
 .pr-badge-neutral { background: #f1f5f9; color: #64748b; }
+
+/* Action column's View button — llemr's own is an outline pill in its
+   accent color (border-primary-bright text-primary rounded-[50px]). */
+.pr-btn-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #6366f1;
+  background: transparent;
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pr-btn-view:hover { background: rgba(99, 102, 241, 0.08); }
+.pr-detail-row td { background: #f8fafc; padding: 12px 16px !important; }
+.pr-detail-desc { font-size: 13px; color: #475569; white-space: pre-wrap; margin: 0; }
+.pr-detail-empty { font-size: 13px; color: #94a3b8; font-style: italic; margin: 0; }
 .pr-empty { padding: 24px 0; text-align: center; font-size: 13px; color: #9ca3af; }
 `;
 
@@ -785,6 +811,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeMenu();
     issuesOverlay.hidden = false;
     issuesPanel.innerHTML = "";
+    issuesPanel.classList.add("pr-panel-wide");
 
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
@@ -854,15 +881,23 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
     const thead = document.createElement("thead");
     thead.innerHTML =
-      "<tr><th>Reported</th><th>Report Title</th><th>Priority</th><th>Status</th></tr>";
+      "<tr><th>Reported</th><th>Report Title</th><th>Submitted by</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Action</th></tr>";
     table.appendChild(thead);
 
     const tbody = document.createElement("tbody");
     table.appendChild(tbody);
 
-    type Row = TrackedReport & { status?: string; priority?: string; failed?: boolean };
+    type Row = TrackedReport & {
+      status?: string;
+      priority?: string;
+      dueDate?: string | null;
+      description?: string | null;
+      reporterName?: string | null;
+      failed?: boolean;
+    };
     let rows: Row[] = handlers.getTrackedReports();
     let query = "";
+    const expanded = new Set<string>();
 
     function badgeHtml(meta: Record<string, { label: string; tone: string }>, key: string | undefined, loading: boolean, failed: boolean): string {
       if (failed) return `<span class="pr-badge pr-badge-neutral">Unknown</span>`;
@@ -876,6 +911,8 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       return `<span class="pr-badge ${m.tone}">${m.label}</span>`;
     }
 
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
     function renderRows() {
       const q = query.trim().toLowerCase();
       const filtered = q
@@ -883,12 +920,13 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             (r) =>
               r.title.toLowerCase().includes(q) ||
               (r.status ?? "").toLowerCase().includes(q) ||
-              (r.priority ?? "").toLowerCase().includes(q),
+              (r.priority ?? "").toLowerCase().includes(q) ||
+              (r.reporterName ?? "").toLowerCase().includes(q),
           )
         : rows;
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="pr-empty">${
+        tbody.innerHTML = `<tr><td colspan="7" class="pr-empty">${
           rows.length === 0 ? "No issues found" : "No matching issues"
         }</td></tr>`;
         return;
@@ -897,17 +935,41 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       tbody.innerHTML = filtered
         .map((r) => {
           const loading = r.status === undefined && !r.failed;
-          return `<tr>
+          const dueDate = r.dueDate ? formatDateTime(r.dueDate) : "--";
+          const submittedBy = r.reporterName ? esc(r.reporterName) : "—";
+          const isOpen = expanded.has(r.id);
+          const mainRow = `<tr data-row-id="${r.id}">
             <td>${formatDateTime(r.submittedAt)}</td>
-            <td class="pr-table-title" title="${r.title.replace(/"/g, "&quot;")}">${r.title}</td>
+            <td class="pr-table-title" title="${esc(r.title)}">${esc(r.title)}</td>
+            <td>${submittedBy}</td>
             <td>${badgeHtml(PRIORITY_META, r.priority, loading, !!r.failed)}</td>
             <td>${badgeHtml(STATUS_META, r.status, loading, !!r.failed)}</td>
+            <td>${dueDate}</td>
+            <td><button type="button" class="pr-btn-view" data-view-id="${r.id}" ${loading ? "disabled" : ""}>${EYE_ICON}<span>View</span></button></td>
           </tr>`;
+          if (!isOpen) return mainRow;
+          const desc = r.description
+            ? `<p class="pr-detail-desc">${esc(r.description)}</p>`
+            : `<p class="pr-detail-empty">No description provided</p>`;
+          return `${mainRow}<tr class="pr-detail-row"><td colspan="7">${desc}</td></tr>`;
         })
         .join("");
     }
 
+    // Event delegation — tbody.innerHTML is rebuilt wholesale on every
+    // render, which would silently drop any listeners bound to individual
+    // rows/buttons; binding once on the stable tbody itself avoids that.
+    tbody.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-view-id]");
+      if (!btn) return;
+      const id = btn.dataset.viewId as string;
+      if (expanded.has(id)) expanded.delete(id);
+      else expanded.add(id);
+      renderRows();
+    });
+
     async function loadStatuses() {
+      expanded.clear();
       rows = rows.map((r) => ({ id: r.id, title: r.title, submittedAt: r.submittedAt }));
       renderRows();
       // Fetched per-row, independently — one slow/failed lookup (a report
@@ -919,6 +981,9 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             const result = await handlers.fetchReportStatus(r.id);
             r.status = result.status;
             r.priority = result.priority;
+            r.dueDate = result.dueDate;
+            r.description = result.description;
+            r.reporterName = result.reporterName;
           } catch {
             r.failed = true;
           }

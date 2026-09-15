@@ -97,6 +97,12 @@ export interface ReportStatusSummary {
   status: string;
   priority: string;
   createdAt: string;
+  /** Staff-set workflow field — null if never set. */
+  dueDate: string | null;
+  /** The reporter's own submitted text — not staff-internal notes/comments. */
+  description: string | null;
+  /** Never `reporterEmail` — see public-report.service.ts's `getById` doc comment for why. */
+  reporterName: string | null;
 }
 
 /**
