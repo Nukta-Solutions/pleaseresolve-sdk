@@ -1,0 +1,55 @@
+name: Deploy widget.js to GitHub Pages
+
+# Same trigger as publish.yml (a v* tag) so the CDN copy always matches
+# whatever version was just published to npm — plus workflow_dispatch so
+# the very first deploy (or a re-deploy with no version bump) can be run
+# by hand from the Actions tab.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+
+      # /widget.js always tracks the version this job ran for (short cache
+      # on GitHub Pages' CDN, so updates propagate quickly). /<version>/widget.js
+      # is a permanent, immutable copy — since every release gets its own
+      # version number, nothing ever overwrites a path someone else has
+      # already pinned to.
+      - name: Prepare Pages site
+        run: |
+          mkdir -p public
+          VERSION=$(node -p "require('./package.json').version")
+          cp dist/widget.global.js public/widget.js
+          mkdir -p "public/$VERSION"
+          cp dist/widget.global.js "public/$VERSION/widget.js"
+          echo "Deployed version: $VERSION"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v4
