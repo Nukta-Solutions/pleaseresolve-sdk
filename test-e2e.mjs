@@ -277,18 +277,36 @@ async function run() {
       () => {
         const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
         const badges = [...root.querySelectorAll(".pr-badge")];
-        return badges.length >= 2 && badges.every((b) => b.textContent !== "…");
+        return badges.length >= 4 && badges.every((b) => b.textContent !== "…");
       },
       { timeout: 6000 },
     );
     const issuesState = await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-      return [...root.querySelectorAll(".pr-issue-row")].map((row) => ({
-        title: row.querySelector(".pr-issue-title").textContent,
-        status: row.querySelector(".pr-badge").textContent,
-      }));
+      return [...root.querySelectorAll("tbody tr")].map((row) => {
+        const cells = row.querySelectorAll("td");
+        return {
+          reported: cells[0].textContent,
+          title: cells[1].textContent,
+          priority: cells[2].textContent,
+          status: cells[3].textContent,
+        };
+      });
     });
-    console.log("9. View Issues popup, tracked + live status:", issuesState);
+    console.log("9. View Issues table, tracked + live status:", issuesState);
+
+    // Search filter — client-side, over the same rows just rendered.
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const input = root.querySelector(".pr-search-input");
+      input.value = "programmatic";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const filteredState = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      return [...root.querySelectorAll("tbody tr td.pr-table-title")].map((td) => td.textContent);
+    });
+    console.log("9b. Search filter ('programmatic'):", filteredState);
 
     if (consoleErrors.length) {
       console.log("\nConsole errors (favicon 404 is expected/harmless):", consoleErrors);
