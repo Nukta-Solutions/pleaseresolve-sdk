@@ -88,3 +88,48 @@ export async function submitReport(
   }
   return { id };
 }
+
+export interface ReportStatusSummary {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  createdAt: string;
+}
+
+/**
+ * Talks to `GET /api/v1/public/reports/:id` — backs "View Issues"
+ * (widget.ts). Deliberately the only read this SDK ever does: there's no
+ * "list my reports" endpoint, by design (see the backend's
+ * `public-report.service.ts` doc comment) — the widget only ever looks up
+ * ids it already tracked itself, in `storage.ts`.
+ */
+export async function fetchReport(
+  apiBaseUrl: string,
+  apiKey: string,
+  reportId: string,
+): Promise<ReportStatusSummary> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { "X-Api-Key": apiKey } });
+  } catch {
+    throw new PleaseResolveApiError("Could not reach the reporting server");
+  }
+
+  let body: { success?: boolean; message?: string; data?: ReportStatusSummary } | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    // fall through — body stays null, handled below
+  }
+
+  if (!res.ok || !body?.success || !body.data) {
+    throw new PleaseResolveApiError(
+      body?.message || `Request failed (${res.status})`,
+      res.status,
+    );
+  }
+  return body.data;
+}

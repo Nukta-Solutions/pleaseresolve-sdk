@@ -10,9 +10,19 @@ to make it public (§10 of the plan doc).
 ## What this is
 
 A customer of Please Resolve pastes one `<script>` tag into their own
-website. It shows a floating "Report an issue" button; their end users click
-it, fill in a short form, and the report lands directly in that customer's
-Please Resolve dashboard — no build step, no account on the customer's side.
+website. It shows a floating "Support" button; clicking it opens a small
+menu — **New Issue** (a form) and **View Issues** (a popup listing what
+this visitor has already reported, with live status) — and the report
+lands directly in that customer's Please Resolve dashboard, no build step,
+no account on the customer's side.
+
+This trigger → menu → New Issue/View Issues pattern deliberately matches
+the internal widget already shipping on llemr (`GlobalReportDropdown`), so
+the two feel like one family. The one real difference: llemr's "View
+Issues" navigates to a full page — it owns its whole app, with a real route
+to send someone to. This widget is dropped into an arbitrary third-party
+page that has no such route, so "View Issues" here is a popup instead of a
+page (see `src/widget.ts`'s top-of-file comment).
 
 ## Quick start (script tag)
 
@@ -57,7 +67,14 @@ destroy();
 ```
 
 Every `report()` call (form or programmatic) auto-attaches `context`
-(current URL, user agent, viewport) — see `src/context.ts`.
+(current URL, user agent, viewport) — see `src/context.ts`, and is tracked
+in the visitor's own `localStorage` (`src/storage.ts`) so "View Issues" can
+show it back with a live status, fetched from `GET /api/v1/public/reports/:id`
+— the one read this SDK ever does. There is no "list all reports" endpoint;
+the widget only ever looks up ids it tracked itself. `public`-type keys get
+`report:read` automatically alongside `report:create` for exactly this
+(`api-key.service.ts`, backend) — it returns only title/status/priority/date,
+never description/attachments/comments.
 
 **Screenshot capture** (`init({ screenshot: true })`, the default): the
 built-in form captures a screenshot via `html2canvas` as soon as it opens

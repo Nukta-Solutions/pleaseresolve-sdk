@@ -61,10 +61,15 @@ appears in the bottom-right corner of every page it's on.
 
 ## What the reporter sees
 
-1. They click the floating button.
-2. A short form opens: what happened (required), details, priority, their name/email (both
-   optional), and — by default — a preview of a screenshot captured from the current page, with a
-   checkbox to include or drop it. They see exactly what would be sent before anything is.
+1. They click the floating **Support** button, bottom-right of the page.
+2. A small menu opens with two options:
+   - **New Issue** — a short form: what happened (required), details, priority, their name/email
+     (both optional), and — by default — a preview of a screenshot captured from the current page,
+     with a checkbox to include or drop it. They see exactly what would be sent before anything is.
+   - **View Issues** — a popup listing what *this browser* has already reported, each with a live
+     status (New / In Progress / Resolved / etc.), fetched fresh every time it's opened. There's no
+     login and no way to see anyone else's reports — it only ever shows what was submitted from
+     this same browser.
 3. On submit, it lands in your dashboard as a report, tagged with the URL, browser, and viewport it
    came from automatically.
 
@@ -110,3 +115,5 @@ but submitting does nothing, check your CSP first.
 | `403 Origin not allowed for this API key` (visible in Network tab) | Your site's exact origin isn't in the key's `allowedOrigins` in Settings → API Keys. |
 | No screenshot preview / "Screenshot unavailable" | html2canvas failed to load (network issue, ad blocker) or failed to capture (an unusual page layout, cross-origin images). Submission still works without it. |
 | Multiple floating buttons | The script tag is present more than once on the page, or a single-page-app is re-injecting it on every route change instead of once. |
+| "View Issues" always shows "You haven't reported anything yet" | Expected the first time in a given browser — it only ever shows reports submitted from *that* browser (`localStorage`, not your account). Clearing site data, private/incognito windows, or a different browser will all show empty too. |
+| "View Issues" shows a status but it's stuck on "…" | The status lookup (`GET /public/reports/:id`) failed — check the key still has `report:read` (Settings → API Keys) and hasn't been revoked. |

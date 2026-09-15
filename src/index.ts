@@ -1,6 +1,7 @@
 import { captureContext } from "./context";
-import { submitReport } from "./api";
+import { fetchReport, submitReport } from "./api";
 import { captureScreenshot } from "./screenshot";
+import { getTrackedReports, trackReport } from "./storage";
 import { mountWidget, type WidgetHandle } from "./widget";
 import type { InitOptions, ReportInput, Reporter } from "./types";
 
@@ -64,6 +65,11 @@ export function init(options: InitOptions): void {
       // can opt out before anything is sent (widget.ts's consent point).
       // Headless `report()` below never captures one at all.
       captureScreenshot: options.screenshot !== false ? captureScreenshot : undefined,
+      getTrackedReports: () => getTrackedReports(requireState().key),
+      fetchReportStatus: (id) => {
+        const s = requireState();
+        return fetchReport(s.apiBaseUrl, s.key, id);
+      },
     });
   }
 }
@@ -72,7 +78,7 @@ async function submit(input: ReportInput, screenshot?: Blob): Promise<{ id: stri
   const s = requireState();
   const context = typeof window !== "undefined" ? captureContext() : undefined;
 
-  return submitReport(s.apiBaseUrl, s.key, {
+  const result = await submitReport(s.apiBaseUrl, s.key, {
     ...input,
     projectId: s.projectId,
     reporter: s.reporter,
@@ -80,6 +86,17 @@ async function submit(input: ReportInput, screenshot?: Blob): Promise<{ id: stri
     metadata: { ...s.metadata, ...input.metadata },
     screenshot,
   });
+
+  // Tracked for both the form and headless `report()` calls — "View Issues"
+  // (widget.ts) is meant to reflect everything this browser has submitted
+  // through the SDK, not just what went through the default form.
+  trackReport(s.key, {
+    id: result.id,
+    title: input.title,
+    submittedAt: new Date().toISOString(),
+  });
+
+  return result;
 }
 
 /** Submits directly — headless mode's programmatic path. Never auto-attaches a screenshot (see `screenshot` on `InitOptions`); only the built-in form's consent-gated capture does. */

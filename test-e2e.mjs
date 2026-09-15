@@ -156,11 +156,26 @@ async function run() {
     });
     console.log("1. Trigger button rendered:", triggerVisible);
 
+    // The trigger now opens a small menu (New Issue / View Issues) instead
+    // of jumping straight to the form — matches llemr's GlobalReportDropdown
+    // pattern (see widget.ts's top-level doc comment).
     await page.evaluate(() => {
       document
         .querySelector("[data-pleaseresolve-widget]")
         .shadowRoot.querySelector(".pr-trigger")
         .click();
+    });
+    const menuState = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const menu = root.querySelector(".pr-menu");
+      const items = [...root.querySelectorAll(".pr-menu-item span")].map((s) => s.textContent);
+      return { menuVisible: menu && !menu.hidden, items };
+    });
+    console.log("2. Support menu opened on click:", menuState);
+
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      root.querySelectorAll(".pr-menu-item")[0].click(); // "New Issue"
     });
     // `open()` now awaits screenshot capture (CDN fetch + html2canvas
     // render) *before* the form itself renders — see widget.ts — so this
@@ -172,7 +187,7 @@ async function run() {
           .shadowRoot.querySelector('input[id^="pr-title-"]'),
       { timeout: 8000 },
     );
-    console.log("2. Form opened on click (after screenshot capture): true");
+    console.log("3. New Issue form opened from the menu: true");
 
     const screenshotState = await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
@@ -186,7 +201,7 @@ async function run() {
         previewSrcIsBlob: preview?.src?.startsWith("blob:"),
       };
     });
-    console.log("2b. Screenshot capture pipeline:", screenshotState);
+    console.log("3b. Screenshot capture pipeline:", screenshotState);
 
     await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
@@ -210,7 +225,7 @@ async function run() {
           .shadowRoot.querySelector(".pr-success-title"),
       { timeout: 5000 },
     );
-    console.log("3. Submission succeeded, success UI shown");
+    console.log("4. Submission succeeded, success UI shown");
 
     await page.evaluate(() =>
       window.PleaseResolve.identify({ name: "Headless Tester", email: "headless@test.example" }),
@@ -218,24 +233,63 @@ async function run() {
     const reportResult = await page.evaluate(() =>
       window.PleaseResolve.report({ title: "E2E: programmatic report", priority: "urgent" }),
     );
-    console.log("4. Programmatic report() result:", reportResult);
+    console.log("5. Programmatic report() result:", reportResult);
 
     const dbCheck = mongoEval(
       `db.reports.find({title: /^E2E:/}).forEach(r => print(r.title + " | source=" + r.source + " | reporter=" + JSON.stringify(r.externalMeta.publicWidget.reporter)))`,
     );
-    console.log("5. Verified in database:\n" + dbCheck.trim());
+    console.log("6. Verified in database:\n" + dbCheck.trim());
 
     const attachmentCheck = mongoEval(
       `const r = db.reports.findOne({title: "E2E: checkout button unresponsive"}); ` +
         `const a = db.report_attachments.findOne({reportId: r._id}); ` +
         `print(a ? ("attachment: " + a.mimeType + ", " + a.size + " bytes, " + a.url) : "NO ATTACHMENT FOUND");`,
     );
-    console.log("6. Screenshot attachment on the report:\n" + attachmentCheck.trim());
+    console.log("7. Screenshot attachment on the report:\n" + attachmentCheck.trim());
     const s3Url = attachmentCheck.match(/https:\/\/\S+/)?.[0];
     if (s3Url) {
       const s3Check = await fetch(s3Url);
-      console.log(`7. Screenshot actually retrievable from S3: ${s3Check.status}`);
+      console.log(`8. Screenshot actually retrievable from S3: ${s3Check.status}`);
     }
+
+    // "View Issues" — both reports just submitted (form + headless) should
+    // be tracked locally (storage.ts) and show a live-fetched status. The
+    // success overlay from step 4 is fixed/full-viewport until it
+    // auto-closes (2.5s) and would otherwise sit on top of the trigger,
+    // same class of issue found in pleaseresolve-sdk-react's own test.
+    await page.waitForFunction(
+      () =>
+        document.querySelector("[data-pleaseresolve-widget]").shadowRoot.querySelectorAll(
+          ".pr-overlay",
+        )[0].hidden,
+      { timeout: 4000 },
+    );
+    await page.evaluate(() => {
+      document
+        .querySelector("[data-pleaseresolve-widget]")
+        .shadowRoot.querySelector(".pr-trigger")
+        .click();
+    });
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      root.querySelectorAll(".pr-menu-item")[1].click(); // "View Issues"
+    });
+    await page.waitForFunction(
+      () => {
+        const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+        const badges = [...root.querySelectorAll(".pr-badge")];
+        return badges.length >= 2 && badges.every((b) => b.textContent !== "…");
+      },
+      { timeout: 6000 },
+    );
+    const issuesState = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      return [...root.querySelectorAll(".pr-issue-row")].map((row) => ({
+        title: row.querySelector(".pr-issue-title").textContent,
+        status: row.querySelector(".pr-badge").textContent,
+      }));
+    });
+    console.log("9. View Issues popup, tracked + live status:", issuesState);
 
     if (consoleErrors.length) {
       console.log("\nConsole errors (favicon 404 is expected/harmless):", consoleErrors);
