@@ -103,6 +103,7 @@ export interface ReportStatusSummary {
   description: string | null;
   /** Never `reporterEmail` — see public-report.service.ts's `getById` doc comment for why. */
   reporterName: string | null;
+  projectName: string | null;
 }
 
 /**

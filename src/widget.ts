@@ -96,9 +96,8 @@ const CLOCK_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" 
   <path d="M8 4.8V8l2.4 1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const CALENDAR_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="2.3" y="3" width="11.4" height="10.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
-  <path d="M2.3 6.3H13.7M5.3 2V4M10.7 2V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+const FOLDER_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 4.5C2 3.67 2.67 3 3.5 3h2.6l1.3 1.5h5.1c.83 0 1.5.67 1.5 1.5v5.5c0 .83-.67 1.5-1.5 1.5h-9c-.83 0-1.5-.67-1.5-1.5v-7Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
 </svg>`;
 
 const STYLES = `
@@ -958,6 +957,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       dueDate?: string | null;
       description?: string | null;
       reporterName?: string | null;
+      projectName?: string | null;
       failed?: boolean;
     };
     let rows: Row[] = handlers.getTrackedReports();
@@ -1010,13 +1010,17 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       priorityWrap.innerHTML = badgeHtml(PRIORITY_META, row.priority, false, !!row.failed);
       detailPanel.appendChild(priorityWrap);
 
+      // Same 2x2 layout as llemr's real modal: Person/Project on the first
+      // row, Date/Status on the second — llemr's own info grid has no due
+      // date in it at all (that's a table-only column, see the Issues
+      // table above), so this widget doesn't invent a spot for it either.
       const infoGrid = document.createElement("div");
       infoGrid.className = "pr-detail-info-grid";
       infoGrid.innerHTML = `
         <div class="pr-detail-info-item">${PERSON_ICON}<span>${row.reporterName ? esc(row.reporterName) : "Anonymous"}</span></div>
+        <div class="pr-detail-info-item">${FOLDER_ICON}<span>${row.projectName ? esc(row.projectName) : "—"}</span></div>
         <div class="pr-detail-info-item">${CLOCK_ICON}<span>${formatDateTime(row.submittedAt)}</span></div>
         <div class="pr-detail-info-item">${badgeHtml(STATUS_META, row.status, false, !!row.failed)}</div>
-        <div class="pr-detail-info-item">${CALENDAR_ICON}<span>${row.dueDate ? formatDateTime(row.dueDate) : "No due date"}</span></div>
       `;
       detailPanel.appendChild(infoGrid);
 
@@ -1095,6 +1099,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             r.dueDate = result.dueDate;
             r.description = result.description;
             r.reporterName = result.reporterName;
+            r.projectName = result.projectName;
           } catch {
             r.failed = true;
           }
