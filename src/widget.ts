@@ -86,6 +86,21 @@ const REFRESH_ICON = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none
   <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3.2h-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
+const PERSON_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="8" cy="5" r="2.6" stroke="currentColor" stroke-width="1.4"/>
+  <path d="M2.8 13.5c.9-2.6 2.9-4 5.2-4s4.3 1.4 5.2 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+</svg>`;
+
+const CLOCK_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
+  <path d="M8 4.8V8l2.4 1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+const CALENDAR_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2.3" y="3" width="11.4" height="10.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+  <path d="M2.3 6.3H13.7M5.3 2V4M10.7 2V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+</svg>`;
+
 const STYLES = `
 :host { all: initial; }
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -415,9 +430,41 @@ const STYLES = `
   white-space: nowrap;
 }
 .pr-btn-view:hover { background: rgba(99, 102, 241, 0.08); }
-.pr-detail-row td { background: #f8fafc; padding: 12px 16px !important; }
-.pr-detail-desc { font-size: 13px; color: #475569; white-space: pre-wrap; margin: 0; }
-.pr-detail-empty { font-size: 13px; color: #94a3b8; font-style: italic; margin: 0; }
+
+/* Report detail modal — matches llemr's real ReportDetailModal.tsx. */
+.pr-detail-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.pr-detail-info-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pr-detail-info-item span:not(.pr-badge) {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-detail-info-item svg { color: #64748b; flex-shrink: 0; }
+.pr-detail-section { margin-bottom: 20px; }
+.pr-detail-section:last-child { margin-bottom: 0; }
+.pr-detail-section-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.pr-detail-section-body { font-size: 13px; color: #1e293b; line-height: 1.6; margin: 0; white-space: pre-wrap; }
+.pr-detail-section-empty { font-size: 13px; color: #94a3b8; margin: 0; }
 .pr-empty { padding: 24px 0; text-align: center; font-size: 13px; color: #9ca3af; }
 `;
 
@@ -497,6 +544,23 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   issuesPanel.className = "pr-panel";
   issuesPanel.style.position = "relative";
   issuesOverlay.appendChild(issuesPanel);
+
+  // A third overlay, stacked on top of the other two — the Action column's
+  // "View" button (openDetail below) opens this over the Issues table
+  // rather than replacing it, matching llemr's own ReportDetailModal
+  // opening over its Issues table the same way.
+  const detailOverlay = document.createElement("div");
+  detailOverlay.className = "pr-overlay";
+  detailOverlay.hidden = true;
+  detailOverlay.setAttribute("role", "dialog");
+  detailOverlay.setAttribute("aria-modal", "true");
+  detailOverlay.style.zIndex = "1000001";
+  root.appendChild(detailOverlay);
+
+  const detailPanel = document.createElement("div");
+  detailPanel.className = "pr-panel pr-panel-wide";
+  detailPanel.style.position = "relative";
+  detailOverlay.appendChild(detailPanel);
 
   let attachedFiles: File[] = [];
 
@@ -777,6 +841,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   function close() {
     overlay.hidden = true;
     issuesOverlay.hidden = true;
+    detailOverlay.hidden = true;
   }
 
   /** Matches llemr's own ReportList.tsx `formatDateTime` exactly (same toLocaleString options). */
@@ -897,7 +962,6 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     };
     let rows: Row[] = handlers.getTrackedReports();
     let query = "";
-    const expanded = new Set<string>();
 
     function badgeHtml(meta: Record<string, { label: string; tone: string }>, key: string | undefined, loading: boolean, failed: boolean): string {
       if (failed) return `<span class="pr-badge pr-badge-neutral">Unknown</span>`;
@@ -912,6 +976,62 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     }
 
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+    /**
+     * The Action column's "View" button — a real modal (not an inline
+     * expand), matching llemr's ReportDetailModal.tsx: title, priority
+     * badge under a divider, a 2x2 info grid, then a Description section.
+     * No Attachments section — this widget's public read API never returns
+     * attachment data at all (a bigger, deliberate exposure boundary than
+     * the description/reporterName/dueDate already added; see
+     * public-report.service.ts's getById doc comment), so there's nothing
+     * real to show there.
+     */
+    function openDetail(row: Row) {
+      detailPanel.innerHTML = "";
+      detailOverlay.hidden = false;
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "pr-close";
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.textContent = "×";
+      closeBtn.addEventListener("click", () => (detailOverlay.hidden = true));
+      detailPanel.appendChild(closeBtn);
+
+      const titleEl = document.createElement("h2");
+      titleEl.className = "pr-title";
+      titleEl.style.paddingRight = "28px";
+      titleEl.textContent = row.title;
+      detailPanel.appendChild(titleEl);
+
+      const priorityWrap = document.createElement("div");
+      priorityWrap.className = "pr-form-divider";
+      priorityWrap.innerHTML = badgeHtml(PRIORITY_META, row.priority, false, !!row.failed);
+      detailPanel.appendChild(priorityWrap);
+
+      const infoGrid = document.createElement("div");
+      infoGrid.className = "pr-detail-info-grid";
+      infoGrid.innerHTML = `
+        <div class="pr-detail-info-item">${PERSON_ICON}<span>${row.reporterName ? esc(row.reporterName) : "Anonymous"}</span></div>
+        <div class="pr-detail-info-item">${CLOCK_ICON}<span>${formatDateTime(row.submittedAt)}</span></div>
+        <div class="pr-detail-info-item">${badgeHtml(STATUS_META, row.status, false, !!row.failed)}</div>
+        <div class="pr-detail-info-item">${CALENDAR_ICON}<span>${row.dueDate ? formatDateTime(row.dueDate) : "No due date"}</span></div>
+      `;
+      detailPanel.appendChild(infoGrid);
+
+      const descSection = document.createElement("div");
+      descSection.className = "pr-detail-section";
+      descSection.innerHTML = `
+        <span class="pr-detail-section-label">Description</span>
+        ${
+          row.description
+            ? `<p class="pr-detail-section-body">${esc(row.description)}</p>`
+            : `<p class="pr-detail-section-empty">No description provided</p>`
+        }
+      `;
+      detailPanel.appendChild(descSection);
+    }
 
     function renderRows() {
       const q = query.trim().toLowerCase();
@@ -937,8 +1057,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
           const loading = r.status === undefined && !r.failed;
           const dueDate = r.dueDate ? formatDateTime(r.dueDate) : "--";
           const submittedBy = r.reporterName ? esc(r.reporterName) : "—";
-          const isOpen = expanded.has(r.id);
-          const mainRow = `<tr data-row-id="${r.id}">
+          return `<tr data-row-id="${r.id}">
             <td>${formatDateTime(r.submittedAt)}</td>
             <td class="pr-table-title" title="${esc(r.title)}">${esc(r.title)}</td>
             <td>${submittedBy}</td>
@@ -947,11 +1066,6 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             <td>${dueDate}</td>
             <td><button type="button" class="pr-btn-view" data-view-id="${r.id}" ${loading ? "disabled" : ""}>${EYE_ICON}<span>View</span></button></td>
           </tr>`;
-          if (!isOpen) return mainRow;
-          const desc = r.description
-            ? `<p class="pr-detail-desc">${esc(r.description)}</p>`
-            : `<p class="pr-detail-empty">No description provided</p>`;
-          return `${mainRow}<tr class="pr-detail-row"><td colspan="7">${desc}</td></tr>`;
         })
         .join("");
     }
@@ -962,14 +1076,11 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     tbody.addEventListener("click", (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-view-id]");
       if (!btn) return;
-      const id = btn.dataset.viewId as string;
-      if (expanded.has(id)) expanded.delete(id);
-      else expanded.add(id);
-      renderRows();
+      const row = rows.find((r) => r.id === btn.dataset.viewId);
+      if (row) openDetail(row);
     });
 
     async function loadStatuses() {
-      expanded.clear();
       rows = rows.map((r) => ({ id: r.id, title: r.title, submittedAt: r.submittedAt }));
       renderRows();
       // Fetched per-row, independently — one slow/failed lookup (a report
@@ -1003,11 +1114,20 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key !== "Escape") return;
-    if (!overlay.hidden || !issuesOverlay.hidden) close();
+    // Topmost layer closes first — the detail modal sits over the Issues
+    // table (detailOverlay's higher z-index), so Escape should back out of
+    // it one step at a time, same as its own close button does, not
+    // dismiss the whole stack at once.
+    if (!detailOverlay.hidden) detailOverlay.hidden = true;
+    else if (!overlay.hidden || !issuesOverlay.hidden) close();
     else if (!menu.hidden) closeMenu();
   }
 
   function onOverlayClick(e: MouseEvent) {
+    if (e.target === detailOverlay) {
+      detailOverlay.hidden = true;
+      return;
+    }
     if (e.target === overlay || e.target === issuesOverlay) close();
   }
 
@@ -1027,6 +1147,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   viewIssuesItem.addEventListener("click", openIssues);
   overlay.addEventListener("click", onOverlayClick);
   issuesOverlay.addEventListener("click", onOverlayClick);
+  detailOverlay.addEventListener("click", onOverlayClick);
   document.addEventListener("keydown", onKeydown);
   document.addEventListener("click", onDocumentClick);
 

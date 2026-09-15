@@ -297,19 +297,39 @@ async function run() {
     });
     console.log("9. View Issues table, tracked + live status:", issuesState);
 
-    // Action column's View button — expands an inline detail row with the
-    // report's description (the one extra field beyond the table columns
-    // themselves; see public-report.service.ts's getById doc comment for
-    // exactly what is/isn't exposed through this read).
+    // Action column's View button — opens a real report-detail modal
+    // (matching llemr's ReportDetailModal.tsx) over the Issues table, with
+    // the report's description (the one extra field beyond the table
+    // columns themselves; see public-report.service.ts's getById doc
+    // comment for exactly what is/isn't exposed through this read).
     await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
       root.querySelector("[data-view-id]").click();
     });
     const detailState = await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-      return root.querySelector(".pr-detail-row")?.textContent.trim();
+      const overlays = [...root.querySelectorAll(".pr-overlay")];
+      const detailOverlay = overlays[overlays.length - 1];
+      return {
+        visible: !detailOverlay.hidden,
+        title: detailOverlay.querySelector(".pr-title")?.textContent,
+        description: detailOverlay.querySelector(".pr-detail-section-body, .pr-detail-section-empty")?.textContent,
+      };
     });
-    console.log("9b. Action 'View' expanded description:", detailState);
+    console.log("9b. Action 'View' detail modal:", detailState);
+    // Closing it should reveal the Issues table underneath, not dismiss
+    // the whole widget.
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const overlays = [...root.querySelectorAll(".pr-overlay")];
+      overlays[overlays.length - 1].querySelector(".pr-close").click();
+    });
+    const afterClose = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const overlays = [...root.querySelectorAll(".pr-overlay")];
+      return { detailHidden: overlays[overlays.length - 1].hidden, issuesStillOpen: !overlays[overlays.length - 2].hidden };
+    });
+    console.log("9c. After closing detail modal:", afterClose);
 
     // Search filter — client-side, over the same rows just rendered.
     await page.evaluate(() => {
@@ -322,7 +342,7 @@ async function run() {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
       return [...root.querySelectorAll("tbody tr td.pr-table-title")].map((td) => td.textContent);
     });
-    console.log("9c. Search filter ('programmatic'):", filteredState);
+    console.log("9d. Search filter ('programmatic'):", filteredState);
 
     if (consoleErrors.length) {
       console.log("\nConsole errors (favicon 404 is expected/harmless):", consoleErrors);
