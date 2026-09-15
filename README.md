@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/%40pleaseresolve%2Fsdk.svg)](https://www.npmjs.com/package/@pleaseresolve/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/%40pleaseresolve%2Fsdk.svg)](https://www.npmjs.com/package/@pleaseresolve/sdk)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/%40pleaseresolve%2Fsdk)](https://bundlephobia.com/package/@pleaseresolve/sdk)
-[![license](https://img.shields.io/npm/l/%40pleaseresolve%2Fsdk.svg)](./LICENSE)
+[![license](https://img.shields.io/badge/license-proprietary-red.svg)](./LICENSE)
 
 **Drop-in issue reporting for any website.** Paste one script tag or `npm install` one package,
 and your visitors can report a bug — with a screenshot, browser context, and priority — straight
@@ -199,4 +199,8 @@ CDN-hosting and npm-publishing runbook.
 
 ## License
 
-MIT
+**Proprietary — not open source.** This package is publicly installable so Please Resolve
+clients can `npm install` it and audit exactly what they're embedding, but it may only be used to
+integrate with the Please Resolve platform under an active Please Resolve account. See
+[LICENSE](./LICENSE) for the full terms — no rights to copy, modify, redistribute, or reuse this
+SDK independently of the Service are granted.
