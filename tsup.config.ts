@@ -5,7 +5,10 @@ export default defineConfig([
   // actually publishes these; producing them now costs nothing extra and
   // means Phase 3 doesn't need to touch the build config at all.
   {
-    entry: { sdk: "src/index.ts" },
+    // Two entries in one build so `dist/auto.*` can still `import` from
+    // `dist/sdk.*` (shared chunk) instead of duplicating the whole SDK a
+    // second time — tsup/esbuild only does that within a single build call.
+    entry: { sdk: "src/index.ts", auto: "src/auto.ts" },
     format: ["esm", "cjs"],
     dts: true,
     sourcemap: true,

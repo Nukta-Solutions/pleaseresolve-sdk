@@ -43,6 +43,35 @@ interchangeable.
 
 `data-project` can be omitted if the key is scoped to exactly one project.
 
+## Quick start (npm, zero config in your code)
+
+```sh
+npm install @pleaseresolve/sdk
+```
+
+```
+# .env
+NEXT_PUBLIC_PLEASERESOLVE_KEY=pk_live_...
+NEXT_PUBLIC_PLEASERESOLVE_PROJECT_ID=...   # optional — only if your key covers more than one project
+```
+
+```ts
+// anywhere in your app's entry point — no init() call, no apiKey prop
+import "@pleaseresolve/sdk/auto";
+```
+
+That's the whole integration: install, set your `.env`, import once. The widget mounts itself by
+reading those env vars at your app's own build time — this only works because a real bundler
+(Next.js, Create React App) is the one inlining `NEXT_PUBLIC_PLEASERESOLVE_KEY` into the bundle;
+see `src/env.ts` for exactly why the two supported prefixes (`NEXT_PUBLIC_` / `REACT_APP_`) are
+the only ones, and why a plain script tag needs the `data-key` attribute instead (no bundler is
+involved there at all). Using `@pleaseresolve/react`? `<ReportWidget />` reads the same env vars
+when its props are omitted — see that package's README.
+
+If you'd rather call `init()` yourself (explicit config, conditional mounting, etc.), skip
+`@pleaseresolve/sdk/auto` entirely and use the programmatic API below instead — the two are not
+meant to be combined.
+
 ## Programmatic API
 
 ```ts
@@ -125,3 +154,17 @@ actual attachment on the report, then deletes everything it created.
 `demo/index.html` is also the manual/visual demo — open it in a real browser
 after substituting real `data-key`/`data-project` values (or just look at
 what `test-e2e.mjs` generates) to click through it yourself.
+
+## Testing the npm auto-init path specifically
+
+```sh
+npm run build
+node test-auto-init.mjs
+```
+
+A separate test from the one above — this one proves `@pleaseresolve/sdk/auto` actually works when
+processed by a real bundler, not just that the code looks right: it bundles a tiny test "app" (with
+zero `init()` calls anywhere in its own source) using `esbuild --define`, the same literal
+`process.env.EXACT_NAME` substitution Next.js/CRA perform, confirms the real key actually got baked
+into the output, loads it in headless Chrome, and confirms the widget mounted itself and a real
+submission went through — end to end, no mocking.

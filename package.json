@@ -15,9 +15,14 @@
       "types": "./dist/sdk.d.ts",
       "import": "./dist/sdk.js",
       "require": "./dist/sdk.cjs"
+    },
+    "./auto": {
+      "types": "./dist/auto.d.ts",
+      "import": "./dist/auto.js",
+      "require": "./dist/auto.cjs"
     }
   },
-  "sideEffects": false,
+  "sideEffects": ["./dist/auto.js", "./dist/auto.cjs"],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

@@ -139,6 +139,13 @@ export function destroy(): void {
 }
 
 export type { InitOptions, ReportInput, ReportPriority, Reporter } from "./types";
+/**
+ * Exposed mainly for `@pleaseresolve/react`'s `<ReportWidget />`, which
+ * falls back to these same env vars when its `apiKey`/`projectId` props are
+ * omitted — one source of truth for the "install the package, set env
+ * vars" auto-config story, shared by `auto.ts` and the React wrapper alike.
+ */
+export { readEnvConfig, type EnvConfig } from "./env";
 
 export const PleaseResolve = { init, report, identify, setMetadata, open, close, destroy };
 export default PleaseResolve;
