@@ -134,10 +134,19 @@ const STYLES = `
   padding: 20px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
-.pr-title { margin: 0 0 4px; font-size: 16px; font-weight: 700; color: #111827; }
+.pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #0f172a; }
 .pr-subtitle { margin: 0 0 16px; font-size: 13px; color: #6b7280; }
-.pr-field { margin-bottom: 12px; }
-.pr-label { display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600; color: #374151; }
+.pr-form-divider { border-top: 1px solid #e2e8f0; margin-top: 16px; padding-top: 16px; }
+.pr-field { margin-bottom: 14px; }
+.pr-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
 .pr-input, .pr-textarea, .pr-select {
   width: 100%;
   padding: 8px 10px;
@@ -145,19 +154,31 @@ const STYLES = `
   border-radius: 8px;
   font-size: 14px;
   color: #111827;
+  background: #fff;
 }
+.pr-input::placeholder, .pr-textarea::placeholder { color: #94a3b8; }
 .pr-input:focus, .pr-textarea:focus, .pr-select:focus {
   outline: 2px solid #6366f1;
   outline-offset: 1px;
   border-color: #6366f1;
 }
-.pr-textarea { min-height: 72px; resize: vertical; }
+.pr-textarea { min-height: 96px; resize: vertical; }
+.pr-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 30px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.6'%3E%3Cpath d='M6 8l4 4 4-4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+}
 .pr-row { display: flex; gap: 8px; }
 .pr-row > .pr-field { flex: 1; }
 .pr-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .pr-btn {
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 8px 18px;
+  border-radius: 999px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -387,16 +408,19 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     title.textContent = "Create New Issue";
     panel.appendChild(title);
 
+    const form = document.createElement("form");
+    form.className = "pr-form-divider";
+    panel.appendChild(form);
+
     const errorBox = document.createElement("div");
     errorBox.className = "pr-error";
     errorBox.hidden = true;
-    panel.appendChild(errorBox);
-
-    const form = document.createElement("form");
-    panel.appendChild(form);
+    form.appendChild(errorBox);
 
     const titleField = fieldInput("title", "Issue Title", "input", true);
+    (titleField.el as HTMLInputElement).placeholder = "Enter report title";
     const descField = fieldInput("description", "Description", "textarea", false);
+    (descField.el as HTMLTextAreaElement).placeholder = "Describe the issue or report details...";
     form.appendChild(titleField.wrapper);
     form.appendChild(descField.wrapper);
 
