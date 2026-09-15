@@ -179,7 +179,7 @@ npm run build      # dist/sdk.{js,cjs,d.ts}, dist/auto.{js,cjs}, dist/widget.glo
 npm run typecheck
 ```
 
-Two live end-to-end test suites (no mocking — a real local backend, real S3 uploads, real headless
+Three live end-to-end test suites (no mocking — a real local backend, real S3 uploads, real headless
 Chrome):
 
 ```sh
@@ -187,9 +187,14 @@ node test-e2e.mjs        # the full widget UI: menu, form, screenshot capture, V
 node test-auto-init.mjs  # @pleaseresolve/sdk/auto specifically — bundles a throwaway app with
                           # esbuild --define (the same substitution Next.js/CRA perform) and
                           # confirms it mounts and submits with zero init() calls anywhere
+node test-live-cdn.mjs   # loads the actual hosted script tag from GitHub Pages (not a local
+                          # dist/ build) and confirms a real submission through it — rerun this
+                          # after any redeploy to catch "the CDN is serving something wrong"
+                          # separately from "the local build is wrong"
 ```
 
-Both require a local `pleaseresolve-backend` running on `:5000` (`docker compose up` there).
+All three require a local `pleaseresolve-backend` running on `:5000` (`docker compose up` there);
+`test-live-cdn.mjs` additionally needs network access to `nukta-solutions.github.io`.
 `demo/index.html` is also the manual/visual demo — open it after substituting real
 `data-key`/`data-project` values.
 
