@@ -110,9 +110,30 @@ const FOLDER_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
   <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
 </svg>`;
 
-const FILE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M4 1.5h5l3 3v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-  <path d="M9 1.5V4.5H12" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+/** lucide-react's real "FileText" path data (ISC-licensed) — matches AttachmentPreviewModal.tsx's file icon exactly, not a hand-drawn approximation. */
+const FILE_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/>
+  <path d="M14 2v5a1 1 0 0 0 1 1h5"/>
+  <path d="M10 9H8"/>
+  <path d="M16 13H8"/>
+  <path d="M16 17H8"/>
+</svg>`;
+
+/** lucide-react's real "Download" path data — the preview modal's "Open / download" button. */
+const DOWNLOAD_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 15V3"/>
+  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+  <path d="m7 10 5 5 5-5"/>
+</svg>`;
+
+/** lucide-react's real "ImageOff" path data — llemr's own ImageWithFallback.tsx shows this on a broken image URL, used both for the thumbnail and the lightbox. */
+const IMAGE_OFF_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="2" x2="22" y1="2" y2="22"/>
+  <path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/>
+  <line x1="13.5" x2="6" y1="13.5" y2="21"/>
+  <line x1="18" x2="21" y1="12" y2="15"/>
+  <path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/>
+  <path d="M21 15V5a2 2 0 0 0-2-2H9"/>
 </svg>`;
 
 const STYLES = `
@@ -508,6 +529,8 @@ const STYLES = `
   display: block;
   width: 112px;
   height: 112px;
+  margin: 0;
+  padding: 0;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   overflow: hidden;
@@ -534,25 +557,32 @@ const STYLES = `
   align-items: center;
   gap: 8px;
   max-width: 220px;
+  margin: 0;
   padding: 8px 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+  background: transparent;
   text-decoration: none;
   cursor: pointer;
 }
 .pr-attachment-file:hover { background: #f9fafb; border-color: #6366f1; }
+/* llemr's real bg-primary/10 + text-primary (its own violet token, #9b5f97 —
+   see .pr-badge-primary above), h-9 w-9 — matched exactly, not the widget's
+   own indigo accent, since this is a literal element reproduction. */
 .pr-attachment-file-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  background: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
+  background: rgba(155, 95, 151, 0.1);
+  color: #9b5f97;
   flex-shrink: 0;
 }
+.pr-attachment-file-text { min-width: 0; text-align: left; }
 .pr-attachment-file-name {
+  margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: #1e293b;
@@ -560,7 +590,77 @@ const STYLES = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pr-attachment-file-view { margin: 0; font-size: 10px; color: #64748b; }
 .pr-empty { padding: 24px 0; text-align: center; font-size: 13px; color: #9ca3af; }
+
+/* Attachment preview lightbox — a fourth stacked overlay above the detail
+   modal, matching llemr's real AttachmentPreviewModal.tsx: a dark Radix
+   dialog with an inline iframe/video preview for non-images rather than
+   just opening the raw URL in a new tab. */
+.pr-preview-panel {
+  width: 100%;
+  max-width: 1152px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  padding: 16px 16px 0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+.pr-preview-title { margin: 0 0 4px; padding-right: 28px; font-size: 18px; font-weight: 600; color: #fff; overflow-wrap: break-word; }
+.pr-preview-close { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.pr-preview-close:hover { background: rgba(255, 255, 255, 0.3); }
+.pr-preview-body { border-top: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 16px; overflow-y: auto; }
+.pr-preview-image { display: block; max-height: min(85vh, 800px); width: 100%; margin-top: 16px; border-radius: 8px; object-fit: contain; }
+.pr-preview-file { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; max-height: min(90vh, 900px); }
+.pr-preview-file-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.pr-preview-file-bar svg { flex-shrink: 0; color: #fff; }
+.pr-preview-file-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-preview-download {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.pr-preview-download:hover { background: rgba(255, 255, 255, 0.25); }
+.pr-preview-frame { min-height: 70vh; width: 100%; flex: 1; border: 0; border-radius: 8px; background: #fff; }
+.pr-preview-caption { flex-shrink: 0; margin: 0; text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+
+/* Broken-image fallback — matches llemr's real ImageWithFallback.tsx, used
+   both for the 112px attachment thumbnail and the full lightbox. */
+.pr-img-fallback { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background: #f1f5f9; color: #94a3b8; }
+.pr-img-fallback svg { opacity: 0.6; flex-shrink: 0; }
+.pr-preview-image-fallback { min-height: 300px; margin-top: 16px; border-radius: 8px; }
 `;
 
 /**
@@ -621,6 +721,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   overlay.hidden = true;
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
+  overlay.dataset.prLayer = "form";
   root.appendChild(overlay);
 
   const panel = document.createElement("div");
@@ -633,6 +734,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   issuesOverlay.hidden = true;
   issuesOverlay.setAttribute("role", "dialog");
   issuesOverlay.setAttribute("aria-modal", "true");
+  issuesOverlay.dataset.prLayer = "issues";
   root.appendChild(issuesOverlay);
 
   const issuesPanel = document.createElement("div");
@@ -650,12 +752,31 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   detailOverlay.setAttribute("role", "dialog");
   detailOverlay.setAttribute("aria-modal", "true");
   detailOverlay.style.zIndex = "1000001";
+  detailOverlay.dataset.prLayer = "detail";
   root.appendChild(detailOverlay);
 
   const detailPanel = document.createElement("div");
   detailPanel.className = "pr-panel pr-panel-wide";
   detailPanel.style.position = "relative";
   detailOverlay.appendChild(detailPanel);
+
+  // A fourth overlay, stacked over the detail modal — matches llemr's real
+  // AttachmentPreviewModal.tsx opening on top of ReportDetailModal.tsx when
+  // an attachment thumbnail/pill is clicked.
+  const previewOverlay = document.createElement("div");
+  previewOverlay.className = "pr-overlay";
+  previewOverlay.hidden = true;
+  previewOverlay.setAttribute("role", "dialog");
+  previewOverlay.setAttribute("aria-modal", "true");
+  previewOverlay.style.zIndex = "1000002";
+  previewOverlay.style.background = "rgba(0, 0, 0, 0.8)";
+  previewOverlay.dataset.prLayer = "preview";
+  root.appendChild(previewOverlay);
+
+  const previewPanel = document.createElement("div");
+  previewPanel.className = "pr-preview-panel";
+  previewPanel.style.position = "relative";
+  previewOverlay.appendChild(previewPanel);
 
   let attachedFiles: File[] = [];
 
@@ -937,6 +1058,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     overlay.hidden = true;
     issuesOverlay.hidden = true;
     detailOverlay.hidden = true;
+    previewOverlay.hidden = true;
   }
 
   /** Matches llemr's own ReportList.tsx `formatDateTime` exactly (same toLocaleString options). */
@@ -1071,6 +1193,91 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
      * public-report.service.ts's getById doc comment), so there's nothing
      * real to show there.
      */
+    /**
+     * The attachment lightbox — matches llemr's real AttachmentPreviewModal.tsx:
+     * images render inline (object-contain), non-images get an inline iframe
+     * preview (works well for PDF/text) plus an explicit "Open / download"
+     * button, rather than this widget just opening the raw S3 URL in a new
+     * tab the way an earlier version did.
+     */
+    function openPreview(attachment: { url: string; name: string; kind: "image" | "file" }) {
+      previewPanel.innerHTML = "";
+      previewOverlay.hidden = false;
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "pr-close pr-preview-close";
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
+      closeBtn.addEventListener("click", () => (previewOverlay.hidden = true));
+      previewPanel.appendChild(closeBtn);
+
+      const titleEl = document.createElement("h2");
+      titleEl.className = "pr-preview-title";
+      titleEl.textContent = attachment.name;
+      previewPanel.appendChild(titleEl);
+
+      const body = document.createElement("div");
+      body.className = "pr-preview-body";
+
+      if (attachment.kind === "image") {
+        const img = document.createElement("img");
+        img.className = "pr-preview-image";
+        img.src = attachment.url;
+        img.alt = attachment.name;
+        img.addEventListener(
+          "error",
+          () => {
+            const fallback = document.createElement("div");
+            fallback.className = "pr-img-fallback pr-preview-image-fallback";
+            fallback.setAttribute("aria-hidden", "true");
+            fallback.innerHTML = IMAGE_OFF_ICON;
+            img.replaceWith(fallback);
+          },
+          { once: true },
+        );
+        body.appendChild(img);
+      } else {
+        const wrap = document.createElement("div");
+        wrap.className = "pr-preview-file";
+
+        const bar = document.createElement("div");
+        bar.className = "pr-preview-file-bar";
+        bar.innerHTML = FILE_ICON;
+
+        const nameEl = document.createElement("p");
+        nameEl.className = "pr-preview-file-name";
+        nameEl.title = attachment.name;
+        nameEl.textContent = attachment.name;
+        bar.appendChild(nameEl);
+
+        const downloadBtn = document.createElement("button");
+        downloadBtn.type = "button";
+        downloadBtn.className = "pr-preview-download";
+        downloadBtn.innerHTML = `${DOWNLOAD_ICON}<span>Open / download</span>`;
+        downloadBtn.addEventListener("click", () =>
+          window.open(attachment.url, "_blank", "noopener,noreferrer"),
+        );
+        bar.appendChild(downloadBtn);
+        wrap.appendChild(bar);
+
+        const frame = document.createElement("iframe");
+        frame.className = "pr-preview-frame";
+        frame.title = attachment.name;
+        frame.src = attachment.url;
+        wrap.appendChild(frame);
+
+        const caption = document.createElement("p");
+        caption.className = "pr-preview-caption";
+        caption.textContent = 'Preview works best for PDF and text. Other formats may need "Open / download".';
+        wrap.appendChild(caption);
+
+        body.appendChild(wrap);
+      }
+
+      previewPanel.appendChild(body);
+    }
+
     function openDetail(row: Row) {
       detailPanel.innerHTML = "";
       detailOverlay.hidden = false;
@@ -1141,29 +1348,44 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         list.className = "pr-attachment-list";
         for (const a of attachments) {
           if (a.kind === "image") {
-            const link = document.createElement("a");
-            link.className = "pr-attachment-image";
-            link.href = a.url;
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-            link.title = a.name;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "pr-attachment-image";
+            btn.title = a.name;
+            btn.addEventListener("click", () => openPreview(a));
             const img = document.createElement("img");
             img.src = a.url;
             img.alt = a.name;
-            link.appendChild(img);
+            img.addEventListener(
+              "error",
+              () => {
+                const fallback = document.createElement("div");
+                fallback.className = "pr-img-fallback";
+                fallback.setAttribute("aria-hidden", "true");
+                fallback.innerHTML = IMAGE_OFF_ICON;
+                img.replaceWith(fallback);
+              },
+              { once: true },
+            );
+            btn.appendChild(img);
             const overlay = document.createElement("div");
             overlay.className = "pr-attachment-image-overlay";
             overlay.innerHTML = EYE_ICON;
-            link.appendChild(overlay);
-            list.appendChild(link);
+            btn.appendChild(overlay);
+            list.appendChild(btn);
           } else {
-            const link = document.createElement("a");
-            link.className = "pr-attachment-file";
-            link.href = a.url;
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-            link.innerHTML = `<span class="pr-attachment-file-icon">${FILE_ICON}</span><span class="pr-attachment-file-name">${esc(a.name)}</span>`;
-            list.appendChild(link);
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "pr-attachment-file";
+            btn.addEventListener("click", () => openPreview(a));
+            btn.innerHTML = `
+              <span class="pr-attachment-file-icon">${FILE_ICON}</span>
+              <span class="pr-attachment-file-text">
+                <p class="pr-attachment-file-name">${esc(a.name)}</p>
+                <p class="pr-attachment-file-view">View</p>
+              </span>
+            `;
+            list.appendChild(btn);
           }
         }
         attachSection.appendChild(list);
@@ -1252,16 +1474,21 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key !== "Escape") return;
-    // Topmost layer closes first — the detail modal sits over the Issues
-    // table (detailOverlay's higher z-index), so Escape should back out of
-    // it one step at a time, same as its own close button does, not
-    // dismiss the whole stack at once.
-    if (!detailOverlay.hidden) detailOverlay.hidden = true;
+    // Topmost layer closes first — the preview lightbox sits over the
+    // detail modal, which sits over the Issues table (each a higher
+    // z-index than the last), so Escape backs out one step at a time, same
+    // as each layer's own close button does, not the whole stack at once.
+    if (!previewOverlay.hidden) previewOverlay.hidden = true;
+    else if (!detailOverlay.hidden) detailOverlay.hidden = true;
     else if (!overlay.hidden || !issuesOverlay.hidden) close();
     else if (!menu.hidden) closeMenu();
   }
 
   function onOverlayClick(e: MouseEvent) {
+    if (e.target === previewOverlay) {
+      previewOverlay.hidden = true;
+      return;
+    }
     if (e.target === detailOverlay) {
       detailOverlay.hidden = true;
       return;
@@ -1286,6 +1513,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   overlay.addEventListener("click", onOverlayClick);
   issuesOverlay.addEventListener("click", onOverlayClick);
   detailOverlay.addEventListener("click", onOverlayClick);
+  previewOverlay.addEventListener("click", onOverlayClick);
   document.addEventListener("keydown", onKeydown);
   document.addEventListener("click", onDocumentClick);
 

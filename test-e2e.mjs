@@ -309,8 +309,7 @@ async function run() {
     });
     const detailState = await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-      const overlays = [...root.querySelectorAll(".pr-overlay")];
-      const detailOverlay = overlays[overlays.length - 1];
+      const detailOverlay = root.querySelector('[data-pr-layer="detail"]');
       return {
         visible: !detailOverlay.hidden,
         title: detailOverlay.querySelector(".pr-title")?.textContent,
@@ -322,13 +321,14 @@ async function run() {
     // the whole widget.
     await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-      const overlays = [...root.querySelectorAll(".pr-overlay")];
-      overlays[overlays.length - 1].querySelector(".pr-close").click();
+      root.querySelector('[data-pr-layer="detail"] .pr-close').click();
     });
     const afterClose = await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-      const overlays = [...root.querySelectorAll(".pr-overlay")];
-      return { detailHidden: overlays[overlays.length - 1].hidden, issuesStillOpen: !overlays[overlays.length - 2].hidden };
+      return {
+        detailHidden: root.querySelector('[data-pr-layer="detail"]').hidden,
+        issuesStillOpen: !root.querySelector('[data-pr-layer="issues"]').hidden,
+      };
     });
     console.log("9c. After closing detail modal:", afterClose);
 
@@ -342,12 +342,42 @@ async function run() {
     });
     const attachmentDetail = await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-      const overlays = [...root.querySelectorAll(".pr-overlay")];
-      const detail = overlays[overlays.length - 1];
-      const fileLink = detail.querySelector(".pr-attachment-file");
-      return { fileName: fileLink?.querySelector(".pr-attachment-file-name")?.textContent, href: fileLink?.href };
+      const detail = root.querySelector('[data-pr-layer="detail"]');
+      const fileBtn = detail.querySelector(".pr-attachment-file");
+      return { fileName: fileBtn?.querySelector(".pr-attachment-file-name")?.textContent };
     });
     console.log("9e. Attachments section on the row with a real upload:", attachmentDetail);
+
+    // 9f. Clicking the attachment pill should open the preview lightbox
+    // (matching llemr's real AttachmentPreviewModal.tsx — an inline iframe
+    // + "Open / download" button, not just navigating the tab away).
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      root.querySelector('[data-pr-layer="detail"] .pr-attachment-file').click();
+    });
+    const filePreview = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const preview = root.querySelector('[data-pr-layer="preview"]');
+      return {
+        visible: !preview.hidden,
+        title: preview.querySelector(".pr-preview-title")?.textContent,
+        hasFrame: !!preview.querySelector(".pr-preview-frame")?.src,
+        hasDownloadBtn: !!preview.querySelector(".pr-preview-download"),
+      };
+    });
+    console.log("9f. Attachment preview lightbox (file):", filePreview);
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      root.querySelector('[data-pr-layer="preview"] .pr-close').click();
+    });
+    const afterPreviewClose = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      return {
+        previewHidden: root.querySelector('[data-pr-layer="preview"]').hidden,
+        detailStillOpen: !root.querySelector('[data-pr-layer="detail"]').hidden,
+      };
+    });
+    console.log("9g. After closing preview — detail modal still open underneath:", afterPreviewClose);
 
     // Search filter — client-side, over the same rows just rendered.
     await page.evaluate(() => {
@@ -389,7 +419,7 @@ async function run() {
         const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
         return [...root.querySelectorAll("tbody tr td.pr-table-title")].map((td) => td.textContent);
       });
-      console.log("9f. Same reports, from a browser context that never submitted anything:", freshBrowserState);
+      console.log("9h. Same reports, from a browser context that never submitted anything:", freshBrowserState);
     } finally {
       await freshContext.close();
     }
