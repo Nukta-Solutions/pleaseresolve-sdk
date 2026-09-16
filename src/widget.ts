@@ -58,9 +58,15 @@ const PLUS_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" x
   <path d="M7.5 1.5V13.5M1.5 7.5H13.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
 </svg>`;
 
-const EYE_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M1 7.5C2.2 4.5 4.6 2.7 7.5 2.7C10.4 2.7 12.8 4.5 14 7.5C12.8 10.5 10.4 12.3 7.5 12.3C4.6 12.3 2.2 10.5 1 7.5Z" stroke="currentColor" stroke-width="1.4"/>
-  <circle cx="7.5" cy="7.5" r="2.1" stroke="currentColor" stroke-width="1.4"/>
+// This icon and the other lucide-sourced ones below (PERSON_ICON,
+// FOLDER_ICON, CLOCK_ICON, CLOSE_X_ICON below) use lucide-react's
+// actual path data, pulled directly from llemr's own rendered DOM — not
+// hand-drawn approximations — since llemr's own UI uses lucide-react
+// throughout. lucide-react is ISC-licensed; embedding its path data as
+// inline SVG doesn't pull in the library itself.
+const EYE_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
+  <circle cx="12" cy="12" r="3"/>
 </svg>`;
 
 const UPLOAD_ICON = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -70,6 +76,13 @@ const UPLOAD_ICON = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"
 
 const X_ICON = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>`;
+
+// Real lucide "x" path (used by the detail modal's close button, matching
+// llemr's exact icon+circular-grey-button chrome rather than a plain "×").
+const CLOSE_X_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M18 6 6 18"/>
+  <path d="m6 6 12 12"/>
 </svg>`;
 
 const SEARCH_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -86,18 +99,18 @@ const REFRESH_ICON = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none
   <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3.2h-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const PERSON_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="8" cy="5" r="2.6" stroke="currentColor" stroke-width="1.4"/>
-  <path d="M2.8 13.5c.9-2.6 2.9-4 5.2-4s4.3 1.4 5.2 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+const PERSON_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+  <circle cx="12" cy="7" r="4"/>
 </svg>`;
 
-const CLOCK_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
-  <path d="M8 4.8V8l2.4 1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+const CLOCK_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 6v6l4 2"/>
+  <circle cx="12" cy="12" r="10"/>
 </svg>`;
 
-const FOLDER_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M2 4.5C2 3.67 2.67 3 3.5 3h2.6l1.3 1.5h5.1c.83 0 1.5.67 1.5 1.5v5.5c0 .83-.67 1.5-1.5 1.5h-9c-.83 0-1.5-.67-1.5-1.5v-7Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+const FOLDER_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
 </svg>`;
 
 const FILE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -251,19 +264,26 @@ const STYLES = `
 .pr-success { text-align: center; padding: 16px 0; }
 .pr-success-title { font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 4px; }
 .pr-success-body { font-size: 13px; color: #6b7280; margin: 0; }
+/* Matches llemr's real close button exactly: a circular grey chip with an
+   icon inside, not a plain "×" glyph — see this file's CLOSE_X_ICON. */
 .pr-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: none;
-  background: transparent;
-  font-size: 18px;
-  line-height: 1;
-  color: #9ca3af;
+  border-radius: 999px;
+  background: #d1d5db;
+  color: #1f2937;
+  opacity: 0.7;
   cursor: pointer;
-  padding: 4px;
+  transition: opacity 0.15s;
 }
-.pr-close:hover { color: #374151; }
+.pr-close:hover { opacity: 1; }
 
 .pr-required { color: #ef4444; }
 
@@ -471,17 +491,34 @@ const STYLES = `
 .pr-detail-section-empty { font-size: 13px; color: #94a3b8; margin: 0; }
 
 .pr-attachment-list { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Sized and behaved exactly like llemr's real thumbnail (h-28 w-28,
+   rounded-lg, hover overlay + eye icon) — see this file's EYE_ICON. */
 .pr-attachment-image {
+  position: relative;
   display: block;
-  width: 96px;
-  height: 96px;
+  width: 112px;
+  height: 112px;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   background: #f9fafb;
   cursor: pointer;
 }
+.pr-attachment-image:hover { border-color: #6366f1; }
 .pr-attachment-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pr-attachment-image-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  color: #fff;
+  opacity: 0;
+  transition: background 0.15s, opacity 0.15s;
+}
+.pr-attachment-image:hover .pr-attachment-image-overlay { background: rgba(0, 0, 0, 0.4); opacity: 1; }
+.pr-attachment-image-overlay svg { width: 20px; height: 20px; }
 .pr-attachment-file {
   display: flex;
   align-items: center;
@@ -627,7 +664,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.type = "button";
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.textContent = "×";
+    closeBtn.innerHTML = CLOSE_X_ICON;
     closeBtn.addEventListener("click", close);
     panel.appendChild(closeBtn);
 
@@ -720,7 +757,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.type = "button";
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.textContent = "×";
+    closeBtn.innerHTML = CLOSE_X_ICON;
     closeBtn.addEventListener("click", close);
     panel.appendChild(closeBtn);
 
@@ -930,7 +967,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.type = "button";
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.textContent = "×";
+    closeBtn.innerHTML = CLOSE_X_ICON;
     closeBtn.addEventListener("click", close);
     issuesPanel.appendChild(closeBtn);
 
@@ -1045,7 +1082,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       closeBtn.type = "button";
       closeBtn.className = "pr-close";
       closeBtn.setAttribute("aria-label", "Close");
-      closeBtn.textContent = "×";
+      closeBtn.innerHTML = CLOSE_X_ICON;
       closeBtn.addEventListener("click", () => (detailOverlay.hidden = true));
       detailPanel.appendChild(closeBtn);
 
@@ -1117,6 +1154,10 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             img.src = a.url;
             img.alt = a.name;
             link.appendChild(img);
+            const overlay = document.createElement("div");
+            overlay.className = "pr-attachment-image-overlay";
+            overlay.innerHTML = EYE_ICON;
+            link.appendChild(overlay);
             list.appendChild(link);
           } else {
             const link = document.createElement("a");
