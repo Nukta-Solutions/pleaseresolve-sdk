@@ -1,6 +1,5 @@
 import { captureContext } from "./context";
-import { fetchReport, submitReport } from "./api";
-import { getTrackedReports, trackReport } from "./storage";
+import { listReports, submitReport } from "./api";
 import { mountWidget, type WidgetHandle } from "./widget";
 import type { InitOptions, ReportInput, Reporter } from "./types";
 
@@ -58,10 +57,9 @@ export function init(options: InitOptions): void {
   if (options.widget !== false) {
     state.widget = mountWidget({
       onSubmit: (input, attachments) => submit(input, attachments),
-      getTrackedReports: () => getTrackedReports(requireState().key),
-      fetchReportStatus: (id) => {
+      listReports: () => {
         const s = requireState();
-        return fetchReport(s.apiBaseUrl, s.key, id);
+        return listReports(s.apiBaseUrl, s.key, s.projectId);
       },
     });
   }
@@ -71,7 +69,7 @@ async function submit(input: ReportInput, attachments?: File[]): Promise<{ id: s
   const s = requireState();
   const context = typeof window !== "undefined" ? captureContext() : undefined;
 
-  const result = await submitReport(s.apiBaseUrl, s.key, {
+  return submitReport(s.apiBaseUrl, s.key, {
     ...input,
     projectId: s.projectId,
     reporter: s.reporter,
@@ -79,17 +77,6 @@ async function submit(input: ReportInput, attachments?: File[]): Promise<{ id: s
     metadata: { ...s.metadata, ...input.metadata },
     attachments,
   });
-
-  // Tracked for both the form and headless `report()` calls — "View Issues"
-  // (widget.ts) is meant to reflect everything this browser has submitted
-  // through the SDK, not just what went through the default form.
-  trackReport(s.key, {
-    id: result.id,
-    title: input.title,
-    submittedAt: new Date().toISOString(),
-  });
-
-  return result;
 }
 
 /** Submits directly — headless mode's programmatic path. Never attaches files (only the built-in form's attachment dropzone, widget.ts, can). */

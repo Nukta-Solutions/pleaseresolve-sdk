@@ -6,9 +6,9 @@
 [![license](https://img.shields.io/badge/license-proprietary-red.svg)](./LICENSE)
 
 **Drop-in issue reporting for any website.** Paste one script tag or `npm install` one package,
-and your visitors can report a bug — with a screenshot, browser context, and priority — straight
-into your [Please Resolve](https://pleaseresolve.nukta.solutions) dashboard. No backend code, no
-account required on the visitor's side.
+and your visitors can report a bug — with an optional attachment, browser context, and priority —
+straight into your [Please Resolve](https://pleaseresolve.nukta.solutions) dashboard. No backend
+code, no account required on the visitor's side.
 
 ```html
 <script src="https://nukta-solutions.github.io/pleaseresolve-sdk/widget.js" data-key="pk_live_..." data-project="..."></script>
@@ -25,7 +25,6 @@ account required on the visitor's side.
   - [npm, explicit config](#npm-explicit-config)
 - [How it works](#how-it-works)
 - [API reference](#api-reference)
-- [Screenshot capture](#screenshot-capture)
 - [Security model](#security-model)
 - [Development](#development)
 
@@ -37,12 +36,10 @@ account required on the visitor's side.
   package** for a bundled app — same widget either way.
 - **Zero-config npm install** — set two env vars, `import "@pleaseresolve/sdk/auto"`, and the
   widget mounts itself. No `init()` call required in your code.
-- **Consent-gated screenshot capture** — the reporter always sees a live preview and a checkbox
-  before a screenshot is sent, never silently.
-- **"View Issues"** — reporters can check the status of what they've already submitted, without an
-  account, scoped to just what that browser reported.
-- **~12KB minified** for the script-tag build — screenshot capture is lazy-loaded on demand, never
-  paid for on a page load that never uses it.
+- **Drag-and-drop attachments** — the built-in form has a real attachment dropzone (images and
+  common file types), matching llemr's own report form exactly.
+- **"Issues"** — a table of every report for the project (not just what one browser submitted),
+  with search, refresh, and a detail view — a 1:1 clone of llemr's real admin Issues page.
 - **First-class TypeScript** — types ship from the same source as the runtime code.
 - **[React bindings](https://github.com/Nukta-Solutions/pleaseresolve-sdk-react)** available as a
   separate `@pleaseresolve/react` package.
@@ -101,10 +98,11 @@ instead. The two approaches aren't meant to be combined.
 
 Clicking the floating **Support** button opens a small menu:
 
-- **New Issue** — a short form (what happened, details, priority, optional name/email, and a
-  screenshot preview you can include or drop) that submits straight to your dashboard.
-- **View Issues** — a popup listing what *this browser* has already reported, with a live-fetched
-  status for each. There's no login and no way to see anyone else's reports.
+- **New Issue** — a short form (title, description, priority, and an optional attachment) that
+  submits straight to your dashboard.
+- **View Issues** — a table of every report submitted for the project through this widget, with
+  search, a Refresh button, and a detail view (matching llemr's real Issues page exactly, not
+  scoped to just the current browser — see [Security model](#security-model) for what that means).
 
 Every submission also auto-attaches context (current URL, browser, viewport) with zero
 configuration.
@@ -134,28 +132,18 @@ destroy();
 
 | Function | What it does |
 |---|---|
-| `init(options)` | Mounts the widget. `key` is required; `projectId`, `apiBaseUrl`, `widget`, `screenshot` are optional. |
+| `init(options)` | Mounts the widget. `key` is required; `projectId` and `apiBaseUrl` are optional. |
 | `open()` / `close()` | Opens/closes the built-in form — for a custom trigger button (`widget: false`). |
-| `report(input)` | Submits directly, no UI. Never auto-attaches a screenshot (only the form does — see below). |
-| `identify(reporter)` | Pre-fills the form's name/email and attaches that identity to every later `report()`. |
+| `report(input)` | Submits directly, no UI. Never attaches files (only the form's dropzone can). |
+| `identify(reporter)` | Pre-fills identity (name/email) attached to every later `report()` call. |
 | `setMetadata(obj)` | Merged into every report's `metadata` from this point on. |
 | `destroy()` | Unmounts the widget and clears all state. |
 
-"View Issues" is backed by `GET /api/v1/public/reports/:id` — the *only* read this SDK ever
-performs. There's no "list all reports" endpoint; the widget only ever looks up ids it tracked
-itself in `localStorage`. That endpoint returns a minimal summary (title/status/priority/date)
-only, never description, attachments, or comments.
-
-## Screenshot capture
-
-On by default (`init({ screenshot: true })`). The built-in form captures a screenshot the moment
-it opens and shows a live preview with a checkbox to include or drop it — **the reporter always
-sees it before anything is sent.** That's why it's wired up for the form only; headless `report()`
-calls never capture one.
-
-The capture library (`html2canvas`, ~200KB) is **not bundled** — it's fetched from a CDN the first
-time a screenshot is actually taken, so a page that never opens the form pays nothing extra. This
-is what keeps the script-tag build at ~12KB minified.
+"View Issues" is backed by `GET /api/v1/public/reports` (list) and `GET /api/v1/public/reports/:id`
+(the Action column's "View"). Both never return comments, internal developer/implementation notes,
+assignees, or the reporter's email — see
+[pleaseresolve-backend's `public-report.service.ts`](https://github.com/Nukta-Solutions/pleaseresolve-backend/blob/saikat/src/modules/public-report/public-report.service.ts)
+for the exact reasoning behind every field that is or isn't included.
 
 ## Security model
 
@@ -171,6 +159,14 @@ Two API key types exist for a reason:
 See the [Phase 1 API guide](https://github.com/Nukta-Solutions/pleaseresolve-backend/blob/saikat/docs/PHASE_1_PUBLIC_API_GUIDE.md#security)
 for the full rationale.
 
+**"View Issues" lists every report for the project, not just the current visitor's own.** Since a
+`public` key is readable from the page's own source, this means anyone who can view your page can
+read every report ever submitted through this widget for that project — titles, descriptions,
+attachments, and any reporter name given. This was a deliberate trade-off to match a real,
+organization-facing Issues table rather than a private per-visitor one; if that's not the right
+model for your use case, don't embed this widget on a page with reports you'd consider sensitive
+to visitors other than the one who filed them.
+
 ## Development
 
 ```sh
@@ -183,7 +179,7 @@ Three live end-to-end test suites (no mocking — a real local backend, real S3 
 Chrome):
 
 ```sh
-node test-e2e.mjs        # the full widget UI: menu, form, screenshot capture, View Issues
+node test-e2e.mjs        # the full widget UI: menu, form, attachments, View Issues, detail modal
 node test-auto-init.mjs  # @pleaseresolve/sdk/auto specifically — bundles a throwaway app with
                           # esbuild --define (the same substitution Next.js/CRA perform) and
                           # confirms it mounts and submits with zero init() calls anywhere

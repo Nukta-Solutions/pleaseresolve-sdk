@@ -1,13 +1,10 @@
 import type { ReportInput, ReportPriority } from "./types";
 import type { ReportStatusSummary } from "./api";
-import type { TrackedReport } from "./storage";
 
 export interface WidgetHandlers {
   onSubmit: (input: ReportInput, attachments: File[]) => Promise<{ id: string }>;
-  /** This browser's own submission history — see storage.ts. Sync; it's a plain localStorage read. */
-  getTrackedReports: () => TrackedReport[];
-  /** Live status for one tracked report — see api.ts's `fetchReport`. */
-  fetchReportStatus: (id: string) => Promise<ReportStatusSummary>;
+  /** Every report for the project, not scoped to this browser — see api.ts's `listReports`. */
+  listReports: () => Promise<ReportStatusSummary[]>;
 }
 
 export interface WidgetHandle {
@@ -945,17 +942,15 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   /**
    * "View Issues" — a popup here, not a page navigation like llemr's
    * equivalent, since this widget has no page of its own on the host site
-   * to send anyone to (see this file's top-level doc comment). Deliberately
-   * styled as a 1:1 clone of llemr's real admin/reports "Issues" table
-   * (ReportList.tsx/ReportBadges.tsx) — same toolbar, table, and badge
-   * colors — minus the columns/actions that table has no honest data for
-   * here: Submitted-by and Due Date aren't returned by this widget's public
-   * read API at all (public-report.service.ts's getById is deliberately
-   * minimal), and there's no Action/View-details column since there's no
-   * extra detail beyond what's already in the row to show.
-   *
-   * Shows only what *this browser* has submitted (storage.ts) — there is
-   * no "list every report" endpoint, by design (public-report.service.ts).
+   * to send anyone to (see this file's top-level doc comment). A 1:1 clone
+   * of llemr's real admin/reports "Issues" table (ReportList.tsx/
+   * ReportBadges.tsx) — same toolbar, table, and badge colors, including
+   * the same data scope: every report for the project, not just what this
+   * browser submitted (see handlers.listReports and
+   * public-report.service.ts's class-level doc comment for the trade-off
+   * that represents and why it was accepted — a public key is readable
+   * from the page's own source, so this is genuinely visible to anyone who
+   * can read that page, not just the reporter).
    */
   async function openIssues() {
     closeMenu();
@@ -1037,22 +1032,11 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     const tbody = document.createElement("tbody");
     table.appendChild(tbody);
 
-    type Row = TrackedReport & {
-      status?: string;
-      priority?: string;
-      dueDate?: string | null;
-      description?: string | null;
-      reporterName?: string | null;
-      projectName?: string | null;
-      attachments?: Array<{ url: string; name: string; contentType: string; kind: "image" | "file" }>;
-      failed?: boolean;
-    };
-    let rows: Row[] = handlers.getTrackedReports();
+    type Row = ReportStatusSummary;
+    let rows: Row[] = [];
     let query = "";
 
-    function badgeHtml(meta: Record<string, { label: string; tone: string }>, key: string | undefined, loading: boolean, failed: boolean): string {
-      if (failed) return `<span class="pr-badge pr-badge-neutral">Unknown</span>`;
-      if (loading) return `<span class="pr-badge pr-badge-neutral">…</span>`;
+    function badgeHtml(meta: Record<string, { label: string; tone: string }>, key: string | undefined): string {
       // Falls back to a plain neutral badge for values llemr's own UI has no
       // tier for at all (report()'s ReportPriority allows "urgent"/
       // "critical", beyond the form's Low/Medium/High) — still shown, just
@@ -1094,7 +1078,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
       const priorityWrap = document.createElement("div");
       priorityWrap.className = "pr-form-divider";
-      priorityWrap.innerHTML = badgeHtml(PRIORITY_META, row.priority, false, !!row.failed);
+      priorityWrap.innerHTML = badgeHtml(PRIORITY_META, row.priority);
       detailPanel.appendChild(priorityWrap);
 
       // Same 2x2 layout as llemr's real modal: Person/Project on the first
@@ -1106,8 +1090,8 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       infoGrid.innerHTML = `
         <div class="pr-detail-info-item">${PERSON_ICON}<span>${row.reporterName ? esc(row.reporterName) : "Anonymous"}</span></div>
         <div class="pr-detail-info-item">${FOLDER_ICON}<span>${row.projectName ? esc(row.projectName) : "—"}</span></div>
-        <div class="pr-detail-info-item">${CLOCK_ICON}<span>${formatDateTime(row.submittedAt)}</span></div>
-        <div class="pr-detail-info-item">${badgeHtml(STATUS_META, row.status, false, !!row.failed)}</div>
+        <div class="pr-detail-info-item">${CLOCK_ICON}<span>${formatDateTime(row.createdAt)}</span></div>
+        <div class="pr-detail-info-item">${badgeHtml(STATUS_META, row.status)}</div>
       `;
       detailPanel.appendChild(infoGrid);
 
@@ -1174,14 +1158,25 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       detailPanel.appendChild(attachSection);
     }
 
+    let loadState: "loading" | "loaded" | "error" = "loading";
+
     function renderRows() {
+      if (loadState === "loading") {
+        tbody.innerHTML = `<tr><td colspan="7" class="pr-empty">Loading…</td></tr>`;
+        return;
+      }
+      if (loadState === "error") {
+        tbody.innerHTML = `<tr><td colspan="7" class="pr-empty">Couldn't load issues — try Refresh.</td></tr>`;
+        return;
+      }
+
       const q = query.trim().toLowerCase();
       const filtered = q
         ? rows.filter(
             (r) =>
               r.title.toLowerCase().includes(q) ||
-              (r.status ?? "").toLowerCase().includes(q) ||
-              (r.priority ?? "").toLowerCase().includes(q) ||
+              r.status.toLowerCase().includes(q) ||
+              r.priority.toLowerCase().includes(q) ||
               (r.reporterName ?? "").toLowerCase().includes(q),
           )
         : rows;
@@ -1195,17 +1190,16 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
       tbody.innerHTML = filtered
         .map((r) => {
-          const loading = r.status === undefined && !r.failed;
           const dueDate = r.dueDate ? formatDateTime(r.dueDate) : "--";
           const submittedBy = r.reporterName ? esc(r.reporterName) : "—";
           return `<tr data-row-id="${r.id}">
-            <td>${formatDateTime(r.submittedAt)}</td>
+            <td>${formatDateTime(r.createdAt)}</td>
             <td class="pr-table-title" title="${esc(r.title)}">${esc(r.title)}</td>
             <td>${submittedBy}</td>
-            <td>${badgeHtml(PRIORITY_META, r.priority, loading, !!r.failed)}</td>
-            <td>${badgeHtml(STATUS_META, r.status, loading, !!r.failed)}</td>
+            <td>${badgeHtml(PRIORITY_META, r.priority)}</td>
+            <td>${badgeHtml(STATUS_META, r.status)}</td>
             <td>${dueDate}</td>
-            <td><button type="button" class="pr-btn-view" data-view-id="${r.id}" ${loading ? "disabled" : ""}>${EYE_ICON}<span>View</span></button></td>
+            <td><button type="button" class="pr-btn-view" data-view-id="${r.id}">${EYE_ICON}<span>View</span></button></td>
           </tr>`;
         })
         .join("");
@@ -1221,38 +1215,26 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       if (row) openDetail(row);
     });
 
-    async function loadStatuses() {
-      rows = rows.map((r) => ({ id: r.id, title: r.title, submittedAt: r.submittedAt }));
+    async function load() {
+      loadState = "loading";
       renderRows();
-      // Fetched per-row, independently — one slow/failed lookup (a report
-      // since deleted, a network blip) shouldn't block the rest of the
-      // table from showing real data.
-      await Promise.all(
-        rows.map(async (r) => {
-          try {
-            const result = await handlers.fetchReportStatus(r.id);
-            r.status = result.status;
-            r.priority = result.priority;
-            r.dueDate = result.dueDate;
-            r.description = result.description;
-            r.reporterName = result.reporterName;
-            r.projectName = result.projectName;
-            r.attachments = result.attachments;
-          } catch {
-            r.failed = true;
-          }
-          renderRows();
-        }),
-      );
+      try {
+        rows = await handlers.listReports();
+        loadState = "loaded";
+      } catch {
+        rows = [];
+        loadState = "error";
+      }
+      renderRows();
     }
 
     searchInput.addEventListener("input", () => {
       query = searchInput.value;
       renderRows();
     });
-    refreshBtn.addEventListener("click", () => void loadStatuses());
+    refreshBtn.addEventListener("click", () => void load());
 
-    void loadStatuses();
+    void load();
   }
 
   function onKeydown(e: KeyboardEvent) {

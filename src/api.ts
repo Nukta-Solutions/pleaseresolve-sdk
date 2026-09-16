@@ -109,11 +109,8 @@ export interface ReportStatusSummary {
 }
 
 /**
- * Talks to `GET /api/v1/public/reports/:id` — backs "View Issues"
- * (widget.ts). Deliberately the only read this SDK ever does: there's no
- * "list my reports" endpoint, by design (see the backend's
- * `public-report.service.ts` doc comment) — the widget only ever looks up
- * ids it already tracked itself, in `storage.ts`.
+ * Talks to `GET /api/v1/public/reports/:id` — backs the Action column's
+ * "View" (widget.ts).
  */
 export async function fetchReport(
   apiBaseUrl: string,
@@ -130,6 +127,43 @@ export async function fetchReport(
   }
 
   let body: { success?: boolean; message?: string; data?: ReportStatusSummary } | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    // fall through — body stays null, handled below
+  }
+
+  if (!res.ok || !body?.success || !body.data) {
+    throw new PleaseResolveApiError(
+      body?.message || `Request failed (${res.status})`,
+      res.status,
+    );
+  }
+  return body.data;
+}
+
+/**
+ * Talks to `GET /api/v1/public/reports` — backs "View Issues" (widget.ts).
+ * Lists every report for the project, not scoped to this browser — see
+ * the backend's `public-report.service.ts` class-level doc comment for the
+ * trade-off this represents and why it was accepted.
+ */
+export async function listReports(
+  apiBaseUrl: string,
+  apiKey: string,
+  projectId?: string,
+): Promise<ReportStatusSummary[]> {
+  const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports${qs}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { "X-Api-Key": apiKey } });
+  } catch {
+    throw new PleaseResolveApiError("Could not reach the reporting server");
+  }
+
+  let body: { success?: boolean; message?: string; data?: ReportStatusSummary[] } | null = null;
   try {
     body = await res.json();
   } catch {

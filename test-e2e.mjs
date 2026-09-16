@@ -252,10 +252,11 @@ async function run() {
     }
 
     // "View Issues" — both reports just submitted (form + headless) should
-    // be tracked locally (storage.ts) and show a live-fetched status. The
-    // success overlay from step 4 is fixed/full-viewport until it
-    // auto-closes (2.5s) and would otherwise sit on top of the trigger,
-    // same class of issue found in pleaseresolve-sdk-react's own test.
+    // show up, fetched via a single GET /public/reports (list) call, not
+    // scoped to this browser. The success overlay from step 4 is
+    // fixed/full-viewport until it auto-closes (2.5s) and would otherwise
+    // sit on top of the trigger, same class of issue found in
+    // pleaseresolve-sdk-react's own test.
     await page.waitForFunction(
       () =>
         document.querySelector("[data-pleaseresolve-widget]").shadowRoot.querySelectorAll(
@@ -276,8 +277,8 @@ async function run() {
     await page.waitForFunction(
       () => {
         const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
-        const badges = [...root.querySelectorAll(".pr-badge")];
-        return badges.length >= 4 && badges.every((b) => b.textContent !== "…");
+        const rows = [...root.querySelectorAll("tbody tr")];
+        return rows.length >= 2 && !rows[0].textContent.includes("Loading");
       },
       { timeout: 6000 },
     );
@@ -360,6 +361,38 @@ async function run() {
       return [...root.querySelectorAll("tbody tr td.pr-table-title")].map((td) => td.textContent);
     });
     console.log("9d. Search filter ('programmatic'):", filteredState);
+
+    // The exact scenario that was confusing in practice: does View Issues
+    // show these reports from a browser that has *never* touched this
+    // origin before, not just the one that submitted them? A fresh
+    // incognito-equivalent context (its own cookie/storage jar, same
+    // backend/project/key) is the real automated proof, not just "the
+    // code doesn't call localStorage anymore".
+    const freshContext = await browser.createBrowserContext();
+    try {
+      const freshPage = await freshContext.newPage();
+      await freshPage.goto(`${DEMO_ORIGIN}/demo/index.html`, { waitUntil: "networkidle0" });
+      await freshPage.evaluate(() => {
+        const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+        root.querySelector(".pr-trigger").click();
+        root.querySelectorAll(".pr-menu-item")[1].click();
+      });
+      await freshPage.waitForFunction(
+        () => {
+          const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+          const rows = [...root.querySelectorAll("tbody tr")];
+          return rows.length >= 2 && !rows[0].textContent.includes("Loading");
+        },
+        { timeout: 6000 },
+      );
+      const freshBrowserState = await freshPage.evaluate(() => {
+        const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+        return [...root.querySelectorAll("tbody tr td.pr-table-title")].map((td) => td.textContent);
+      });
+      console.log("9f. Same reports, from a browser context that never submitted anything:", freshBrowserState);
+    } finally {
+      await freshContext.close();
+    }
 
     if (consoleErrors.length) {
       console.log("\nConsole errors (favicon 404 is expected/harmless):", consoleErrors);
