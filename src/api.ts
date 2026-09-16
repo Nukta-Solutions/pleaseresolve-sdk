@@ -104,6 +104,8 @@ export interface ReportStatusSummary {
   /** Never `reporterEmail` — see public-report.service.ts's `getById` doc comment for why. */
   reporterName: string | null;
   projectName: string | null;
+  /** Only ones uploaded through this same widget's own attachment dropzone — never staff-added ones. */
+  attachments: Array<{ url: string; name: string; contentType: string; kind: "image" | "file" }>;
 }
 
 /**

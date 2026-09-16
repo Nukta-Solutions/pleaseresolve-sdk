@@ -100,6 +100,11 @@ const FOLDER_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"
   <path d="M2 4.5C2 3.67 2.67 3 3.5 3h2.6l1.3 1.5h5.1c.83 0 1.5.67 1.5 1.5v5.5c0 .83-.67 1.5-1.5 1.5h-9c-.83 0-1.5-.67-1.5-1.5v-7Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
 </svg>`;
 
+const FILE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 1.5h5l3 3v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M9 1.5V4.5H12" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+</svg>`;
+
 const STYLES = `
 :host { all: initial; }
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -464,6 +469,50 @@ const STYLES = `
 }
 .pr-detail-section-body { font-size: 13px; color: #1e293b; line-height: 1.6; margin: 0; white-space: pre-wrap; }
 .pr-detail-section-empty { font-size: 13px; color: #94a3b8; margin: 0; }
+
+.pr-attachment-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.pr-attachment-image {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f9fafb;
+  cursor: pointer;
+}
+.pr-attachment-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pr-attachment-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.pr-attachment-file:hover { background: #f9fafb; border-color: #6366f1; }
+.pr-attachment-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  flex-shrink: 0;
+}
+.pr-attachment-file-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .pr-empty { padding: 24px 0; text-align: center; font-size: 13px; color: #9ca3af; }
 `;
 
@@ -958,6 +1007,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       description?: string | null;
       reporterName?: string | null;
       projectName?: string | null;
+      attachments?: Array<{ url: string; name: string; contentType: string; kind: "image" | "file" }>;
       failed?: boolean;
     };
     let rows: Row[] = handlers.getTrackedReports();
@@ -1035,6 +1085,52 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         }
       `;
       detailPanel.appendChild(descSection);
+
+      // Only ever the reporter's own uploads (attachmentContext: "report" —
+      // see public-report.service.ts's getById doc comment); a staff member
+      // attaching something later through the dashboard never shows up here.
+      const attachSection = document.createElement("div");
+      attachSection.className = "pr-detail-section";
+      const attachments = row.attachments ?? [];
+      if (attachments.length === 0) {
+        attachSection.innerHTML = `
+          <span class="pr-detail-section-label">Attachments</span>
+          <p class="pr-detail-section-empty">None</p>
+        `;
+      } else {
+        const label = document.createElement("span");
+        label.className = "pr-detail-section-label";
+        label.textContent = "Attachments";
+        attachSection.appendChild(label);
+
+        const list = document.createElement("div");
+        list.className = "pr-attachment-list";
+        for (const a of attachments) {
+          if (a.kind === "image") {
+            const link = document.createElement("a");
+            link.className = "pr-attachment-image";
+            link.href = a.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.title = a.name;
+            const img = document.createElement("img");
+            img.src = a.url;
+            img.alt = a.name;
+            link.appendChild(img);
+            list.appendChild(link);
+          } else {
+            const link = document.createElement("a");
+            link.className = "pr-attachment-file";
+            link.href = a.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.innerHTML = `<span class="pr-attachment-file-icon">${FILE_ICON}</span><span class="pr-attachment-file-name">${esc(a.name)}</span>`;
+            list.appendChild(link);
+          }
+        }
+        attachSection.appendChild(list);
+      }
+      detailPanel.appendChild(attachSection);
     }
 
     function renderRows() {
@@ -1100,6 +1196,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             r.description = result.description;
             r.reporterName = result.reporterName;
             r.projectName = result.projectName;
+            r.attachments = result.attachments;
           } catch {
             r.failed = true;
           }

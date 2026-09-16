@@ -331,6 +331,23 @@ async function run() {
     });
     console.log("9c. After closing detail modal:", afterClose);
 
+    // The other tracked row has a real attachment (step 3b/7 above) —
+    // confirm its detail modal's Attachments section actually renders it,
+    // not just the description.
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const row = [...root.querySelectorAll("tbody tr")].find((r) => r.textContent.includes("checkout button unresponsive"));
+      row.querySelector("[data-view-id]").click();
+    });
+    const attachmentDetail = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const overlays = [...root.querySelectorAll(".pr-overlay")];
+      const detail = overlays[overlays.length - 1];
+      const fileLink = detail.querySelector(".pr-attachment-file");
+      return { fileName: fileLink?.querySelector(".pr-attachment-file-name")?.textContent, href: fileLink?.href };
+    });
+    console.log("9e. Attachments section on the row with a real upload:", attachmentDetail);
+
     // Search filter — client-side, over the same rows just rendered.
     await page.evaluate(() => {
       const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
