@@ -190,11 +190,14 @@ const STYLES = `
 .pr-menu-item:hover { background: #f3f4f6; }
 .pr-menu-item svg { color: #6366f1; flex-shrink: 0; }
 
+/* llemr's real Radix Dialog overlay is bg-black/80 — this was still an
+   old, much lighter guess (rgba(15,15,20,0.45)) from before any real
+   reference existed. Confirmed via src/components/ui/dialog.tsx. */
 .pr-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000000;
-  background: rgba(15, 15, 20, 0.45);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -202,21 +205,28 @@ const STYLES = `
 }
 .pr-overlay[hidden] { display: none; }
 
+/* Matches llemr's real DialogContent base exactly (src/components/ui/dialog.tsx):
+   "border p-6 shadow-lg sm:rounded-lg" — this panel previously had no
+   border at all, a heavier custom shadow, and rounded-xl (12px) instead of
+   the real rounded-lg (8px). */
 .pr-panel {
   width: 100%;
   max-width: 640px;
   max-height: calc(100vh - 32px);
   overflow-y: auto;
   background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }
 /* The Issues table has more columns than the New Issue form has fields
    (Reported/Report Title/Submitted by/Priority/Status/Due Date/Action,
    matching llemr's real admin/reports page exactly) — needs real room. */
 .pr-panel-wide { max-width: 960px; }
-.pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; color: #0f172a; }
+/* llemr's real DialogTitle (dialog.tsx): "text-lg leading-none font-semibold
+   tracking-tight" — this was missing the tight line-height and letter-spacing. */
+.pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; color: #0f172a; }
 .pr-subtitle { margin: 0 0 16px; font-size: 13px; color: #6b7280; }
 .pr-form-divider { border-top: 1px solid #e2e8f0; margin-top: 16px; padding-top: 16px; }
 .pr-field { margin-bottom: 14px; }
@@ -769,7 +779,6 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   previewOverlay.setAttribute("role", "dialog");
   previewOverlay.setAttribute("aria-modal", "true");
   previewOverlay.style.zIndex = "1000002";
-  previewOverlay.style.background = "rgba(0, 0, 0, 0.8)";
   previewOverlay.dataset.prLayer = "preview";
   root.appendChild(previewOverlay);
 
