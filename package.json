@@ -3,7 +3,13 @@
   "version": "0.2.5",
   "description": "Embeddable issue-reporting widget for Please Resolve — script tag today, npm package in Phase 3.",
   "license": "SEE LICENSE IN LICENSE",
-  "keywords": ["please-resolve", "bug-report", "issue-tracker", "widget", "feedback"],
+  "keywords": [
+    "please-resolve",
+    "bug-report",
+    "issue-tracker",
+    "widget",
+    "feedback"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nukta-Solutions/pleaseresolve-sdk.git"
@@ -14,7 +20,10 @@
   "main": "./dist/sdk.cjs",
   "module": "./dist/sdk.js",
   "types": "./dist/sdk.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/sdk.d.ts",
@@ -27,14 +36,21 @@
       "require": "./dist/auto.cjs"
     }
   },
-  "sideEffects": ["./dist/auto.js", "./dist/auto.cjs"],
+  "sideEffects": [
+    "./dist/auto.js",
+    "./dist/auto.cjs"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "puppeteer-core": "^25.11.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

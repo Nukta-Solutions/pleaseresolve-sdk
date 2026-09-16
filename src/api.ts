@@ -178,3 +178,93 @@ export async function listReports(
   }
   return body.data;
 }
+
+/** One message in a report's Client Discussion thread — backend's `serializeMessage` (public-report.service.ts). */
+export interface DiscussionMessage {
+  id: string;
+  message: string;
+  createdAt: string;
+  senderName: string;
+  /** Styling hook only ("your" message vs staff's) — see the backend's identical doc comment; there's no real per-visitor identity behind it. */
+  isExternal: boolean;
+  attachments: Array<{ url: string; name: string; contentType: string; kind: "image" | "file" }>;
+}
+
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  let body: { success?: boolean; message?: string; data?: T } | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    // fall through — body stays null, handled below
+  }
+  if (!res.ok || !body?.success || body.data === undefined) {
+    throw new PleaseResolveApiError(
+      body?.message || `Request failed (${res.status})`,
+      res.status,
+    );
+  }
+  return body.data;
+}
+
+/** `GET /api/v1/public/reports/:id/messages` — always the "client" thread only; never the internal one. */
+export async function listMessages(
+  apiBaseUrl: string,
+  apiKey: string,
+  reportId: string,
+): Promise<DiscussionMessage[]> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages`;
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { "X-Api-Key": apiKey } });
+  } catch {
+    throw new PleaseResolveApiError("Could not reach the reporting server");
+  }
+  return parseJsonResponse<DiscussionMessage[]>(res);
+}
+
+/** `POST /api/v1/public/reports/:id/messages`. */
+export async function sendMessage(
+  apiBaseUrl: string,
+  apiKey: string,
+  reportId: string,
+  input: { message: string; reporterName?: string; attachmentIds?: string[] },
+): Promise<DiscussionMessage> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new PleaseResolveApiError("Could not reach the reporting server");
+  }
+  return parseJsonResponse<DiscussionMessage>(res);
+}
+
+/** `POST /api/v1/public/reports/:id/messages/attachments` — upload first, then pass the returned id in `sendMessage`'s `attachmentIds`. */
+export async function uploadMessageAttachment(
+  apiBaseUrl: string,
+  apiKey: string,
+  reportId: string,
+  file: File,
+): Promise<{ id: string; url: string; name: string; contentType: string; kind: "image" | "file" }> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages/attachments`;
+  const form = new FormData();
+  form.append("file", file, file.name);
+
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", headers: { "X-Api-Key": apiKey }, body: form });
+  } catch {
+    throw new PleaseResolveApiError("Could not reach the reporting server");
+  }
+  return parseJsonResponse<{
+    id: string;
+    url: string;
+    name: string;
+    contentType: string;
+    kind: "image" | "file";
+  }>(res);
+}

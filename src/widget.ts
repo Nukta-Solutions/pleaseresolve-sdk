@@ -1,10 +1,36 @@
 import type { ReportInput, ReportPriority } from "./types";
-import type { ReportStatusSummary } from "./api";
+import type { DiscussionMessage, ReportStatusSummary } from "./api";
 
 export interface WidgetHandlers {
   onSubmit: (input: ReportInput, attachments: File[]) => Promise<{ id: string }>;
   /** Every report for the project, not scoped to this browser — see api.ts's `listReports`. */
   listReports: () => Promise<ReportStatusSummary[]>;
+  /** The "client" Discussion thread only — never the internal one; see api.ts's `listMessages`. */
+  listMessages: (reportId: string) => Promise<DiscussionMessage[]>;
+  sendMessage: (
+    reportId: string,
+    input: { message: string; attachmentIds?: string[] },
+  ) => Promise<DiscussionMessage>;
+  uploadMessageAttachment: (
+    reportId: string,
+    file: File,
+  ) => Promise<{ id: string; url: string; name: string; contentType: string; kind: "image" | "file" }>;
+  /**
+   * Opens a realtime connection scoped to exactly one report's Discussion
+   * thread and returns a disconnect function — index.ts owns the actual
+   * socket.io-client usage (deriving the socket server origin from
+   * `apiBaseUrl`) so this file never needs to import it directly. Calling
+   * this again (a different report's detail opened) should tear down any
+   * previous connection; widget.ts always calls the returned disconnect
+   * function itself before opening a new one, but a defensive
+   * implementation costs nothing. `onStatusChange` drives the composer's
+   * live-connection dot — a real signal, not a decorative "trust me" one.
+   */
+  watchDiscussion: (
+    reportId: string,
+    onMessage: (msg: DiscussionMessage) => void,
+    onStatusChange: (connected: boolean) => void,
+  ) => () => void;
 }
 
 export interface WidgetHandle {
@@ -134,6 +160,17 @@ const IMAGE_OFF_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="no
   <line x1="18" x2="21" y1="12" y2="15"/>
   <path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/>
   <path d="M21 15V5a2 2 0 0 0-2-2H9"/>
+</svg>`;
+
+/** lucide-react's real "Paperclip" path data — the Discussion composer's attach button. */
+const PAPERCLIP_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/>
+</svg>`;
+
+/** lucide-react's real "Send" path data — the Discussion composer's send button. */
+const SEND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/>
+  <path d="m21.854 2.147-10.94 10.939"/>
 </svg>`;
 
 const STYLES = `
@@ -603,6 +640,125 @@ const STYLES = `
 .pr-attachment-file-view { margin: 0; font-size: 10px; color: #64748b; }
 .pr-empty { padding: 24px 0; text-align: center; font-size: 13px; color: #9ca3af; }
 
+/* Discussion (Client Discussion) — no llemr equivalent exists (its
+   ReportDetailModal.tsx has no chat/discussion section at all; this only
+   exists on Please Resolve's own dashboard), so this is styled to match
+   this widget's own established design language rather than pixel-matching
+   another product's UI. Real-time via a socket connection scoped to this
+   one report — see widget.ts's openDetail()/socket wiring. */
+.pr-discussion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 2px;
+  margin-bottom: 10px;
+}
+.pr-discussion-msg { display: flex; flex-direction: column; max-width: 82%; }
+.pr-discussion-msg.pr-msg-mine { align-self: flex-end; align-items: flex-end; }
+.pr-discussion-msg.pr-msg-theirs { align-self: flex-start; align-items: flex-start; }
+.pr-discussion-msg-meta { font-size: 11px; color: #94a3b8; margin-bottom: 3px; padding: 0 2px; }
+.pr-discussion-bubble {
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pr-msg-mine .pr-discussion-bubble { background: #6366f1; color: #fff; border-bottom-right-radius: 4px; }
+.pr-msg-theirs .pr-discussion-bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
+.pr-discussion-bubble-attachments { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.pr-discussion-bubble-attachment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  text-decoration: none;
+  color: inherit;
+  opacity: 0.9;
+  cursor: pointer;
+}
+.pr-discussion-bubble-attachment:hover { opacity: 1; text-decoration: underline; }
+.pr-discussion-bubble-attachment svg { flex-shrink: 0; }
+.pr-discussion-composer {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+}
+.pr-discussion-pending { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.pr-discussion-pending-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 999px;
+  padding: 3px 8px 3px 10px;
+}
+.pr-discussion-pending-chip button {
+  display: flex;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.pr-discussion-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1e293b;
+  min-height: 40px;
+  max-height: 100px;
+  padding: 4px;
+}
+.pr-discussion-input::placeholder { color: #94a3b8; }
+.pr-discussion-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+.pr-discussion-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+.pr-discussion-attach-btn:hover { background: #f1f5f9; color: #1e293b; }
+.pr-discussion-send-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #6366f1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pr-discussion-send-btn:hover { background: #4f46e5; }
+.pr-discussion-send-btn:disabled { background: #a5a6f6; cursor: not-allowed; }
+.pr-discussion-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #d1d5db;
+  margin-left: 6px;
+}
+.pr-discussion-live-dot.pr-live-connected { background: #22c55e; }
+
 /* Attachment preview lightbox — a fourth stacked overlay above the detail
    modal, matching llemr's real AttachmentPreviewModal.tsx: a dark Radix
    dialog with an inline iframe/video preview for non-images rather than
@@ -1063,10 +1219,21 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     render();
   }
 
+  // Set by openDetail() each time it opens a report's Discussion thread;
+  // torn down by closeDetail() below so a socket never keeps running once
+  // nothing on screen is listening to it.
+  let currentDiscussionDisconnect: (() => void) | null = null;
+
+  function closeDetail() {
+    detailOverlay.hidden = true;
+    currentDiscussionDisconnect?.();
+    currentDiscussionDisconnect = null;
+  }
+
   function close() {
     overlay.hidden = true;
     issuesOverlay.hidden = true;
-    detailOverlay.hidden = true;
+    closeDetail();
     previewOverlay.hidden = true;
   }
 
@@ -1296,7 +1463,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       closeBtn.className = "pr-close";
       closeBtn.setAttribute("aria-label", "Close");
       closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
-      closeBtn.addEventListener("click", () => (detailOverlay.hidden = true));
+      closeBtn.addEventListener("click", closeDetail);
       detailPanel.appendChild(closeBtn);
 
       const titleEl = document.createElement("h2");
@@ -1400,6 +1567,245 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         attachSection.appendChild(list);
       }
       detailPanel.appendChild(attachSection);
+
+      buildDiscussion(row);
+    }
+
+    /**
+     * Client Discussion — realtime text + file chat between this visitor and
+     * the org's staff. No llemr equivalent exists for this (its own
+     * ReportDetailModal.tsx has no chat section at all — see this
+     * function's own styling, which matches this widget's established
+     * design language rather than another product's UI). Backed by
+     * `GET/POST /public/reports/:id/messages` for history/sending and a
+     * socket connection (`handlers.watchDiscussion`) scoped to just this
+     * report for live delivery both ways.
+     */
+    function buildDiscussion(row: Row) {
+      // Defensive — in normal use closeDetail() already disconnected any
+      // previous report's socket before this ever runs again.
+      currentDiscussionDisconnect?.();
+      currentDiscussionDisconnect = null;
+
+      const section = document.createElement("div");
+      section.className = "pr-detail-section";
+      const label = document.createElement("span");
+      label.className = "pr-detail-section-label";
+      label.textContent = "Discussion";
+      const liveDot = document.createElement("span");
+      liveDot.className = "pr-discussion-live-dot";
+      liveDot.setAttribute("aria-hidden", "true");
+      label.appendChild(liveDot);
+      section.appendChild(label);
+
+      const list = document.createElement("div");
+      list.className = "pr-discussion-list";
+      list.setAttribute("aria-live", "polite");
+      list.innerHTML = `<p class="pr-detail-section-empty">Loading discussion…</p>`;
+      section.appendChild(list);
+
+      const composer = document.createElement("div");
+      composer.className = "pr-discussion-composer";
+
+      const pendingWrap = document.createElement("div");
+      pendingWrap.className = "pr-discussion-pending";
+      pendingWrap.hidden = true;
+      composer.appendChild(pendingWrap);
+
+      const textarea = document.createElement("textarea");
+      textarea.className = "pr-discussion-input";
+      textarea.placeholder = "Type a message…";
+      textarea.rows = 1;
+      composer.appendChild(textarea);
+
+      const actionsRow = document.createElement("div");
+      actionsRow.className = "pr-discussion-actions";
+
+      const attachBtn = document.createElement("button");
+      attachBtn.type = "button";
+      attachBtn.className = "pr-discussion-attach-btn";
+      attachBtn.setAttribute("aria-label", "Attach file");
+      attachBtn.innerHTML = PAPERCLIP_ICON;
+
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.hidden = true;
+      fileInput.multiple = true;
+
+      const sendBtn = document.createElement("button");
+      sendBtn.type = "button";
+      sendBtn.className = "pr-discussion-send-btn";
+      sendBtn.innerHTML = `${SEND_ICON}<span>Send</span>`;
+
+      actionsRow.appendChild(attachBtn);
+      actionsRow.appendChild(sendBtn);
+      composer.appendChild(actionsRow);
+      composer.appendChild(fileInput);
+      section.appendChild(composer);
+      detailPanel.appendChild(section);
+
+      type PendingAttachment = {
+        localId: string;
+        name: string;
+        status: "uploading" | "ready" | "error";
+        attachmentId?: string;
+      };
+
+      let messages: DiscussionMessage[] = [];
+      let pending: PendingAttachment[] = [];
+      let sending = false;
+
+      function renderMessages() {
+        if (messages.length === 0) {
+          list.innerHTML = `<p class="pr-detail-section-empty">No messages yet — say hello.</p>`;
+          return;
+        }
+        list.innerHTML = "";
+        for (const m of messages) {
+          const row2 = document.createElement("div");
+          row2.className = `pr-discussion-msg ${m.isExternal ? "pr-msg-mine" : "pr-msg-theirs"}`;
+
+          const meta = document.createElement("div");
+          meta.className = "pr-discussion-msg-meta";
+          meta.textContent = `${m.senderName} · ${formatDateTime(m.createdAt)}`;
+          row2.appendChild(meta);
+
+          const bubble = document.createElement("div");
+          bubble.className = "pr-discussion-bubble";
+          if (m.message) {
+            const p = document.createElement("p");
+            p.style.margin = "0";
+            p.textContent = m.message;
+            bubble.appendChild(p);
+          }
+          if (m.attachments.length) {
+            const attWrap = document.createElement("div");
+            attWrap.className = "pr-discussion-bubble-attachments";
+            for (const a of m.attachments) {
+              const attBtn = document.createElement("button");
+              attBtn.type = "button";
+              attBtn.className = "pr-discussion-bubble-attachment";
+              attBtn.innerHTML = `${a.kind === "image" ? EYE_ICON : FILE_ICON}<span>${esc(a.name)}</span>`;
+              attBtn.addEventListener("click", () => openPreview(a));
+              attWrap.appendChild(attBtn);
+            }
+            bubble.appendChild(attWrap);
+          }
+          row2.appendChild(bubble);
+          list.appendChild(row2);
+        }
+        list.scrollTop = list.scrollHeight;
+      }
+
+      function renderPending() {
+        pendingWrap.hidden = pending.length === 0;
+        pendingWrap.innerHTML = "";
+        for (const p of pending) {
+          const chip = document.createElement("span");
+          chip.className = "pr-discussion-pending-chip";
+          const statusLabel = p.status === "uploading" ? " (uploading…)" : p.status === "error" ? " (failed)" : "";
+          chip.innerHTML = `<span>${esc(p.name)}${statusLabel}</span>`;
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.setAttribute("aria-label", `Remove ${p.name}`);
+          removeBtn.innerHTML = CLOSE_X_ICON;
+          removeBtn.addEventListener("click", () => {
+            pending = pending.filter((x) => x.localId !== p.localId);
+            renderPending();
+            updateSendState();
+          });
+          chip.appendChild(removeBtn);
+          pendingWrap.appendChild(chip);
+        }
+      }
+
+      function updateSendState() {
+        const hasUploading = pending.some((p) => p.status === "uploading");
+        const hasContent = textarea.value.trim().length > 0 || pending.some((p) => p.status === "ready");
+        sendBtn.disabled = sending || hasUploading || !hasContent;
+      }
+
+      async function handleFiles(files: FileList | null) {
+        if (!files || files.length === 0) return;
+        for (const file of Array.from(files)) {
+          const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          pending = [...pending, { localId, name: file.name, status: "uploading" }];
+          renderPending();
+          updateSendState();
+          try {
+            const uploaded = await handlers.uploadMessageAttachment(row.id, file);
+            pending = pending.map((p) =>
+              p.localId === localId ? { ...p, status: "ready", attachmentId: uploaded.id } : p,
+            );
+          } catch {
+            pending = pending.map((p) => (p.localId === localId ? { ...p, status: "error" } : p));
+          }
+          renderPending();
+          updateSendState();
+        }
+      }
+
+      attachBtn.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => {
+        void handleFiles(fileInput.files);
+        fileInput.value = "";
+      });
+      textarea.addEventListener("input", updateSendState);
+      textarea.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          void handleSend();
+        }
+      });
+      sendBtn.addEventListener("click", () => void handleSend());
+
+      async function handleSend() {
+        const text = textarea.value.trim();
+        const readyAttachmentIds = pending.filter((p) => p.status === "ready").map((p) => p.attachmentId!);
+        if (!text && readyAttachmentIds.length === 0) return;
+        if (pending.some((p) => p.status === "uploading")) return;
+
+        sending = true;
+        updateSendState();
+        try {
+          const sent = await handlers.sendMessage(row.id, {
+            message: text,
+            attachmentIds: readyAttachmentIds.length ? readyAttachmentIds : undefined,
+          });
+          messages = [...messages, sent];
+          renderMessages();
+          textarea.value = "";
+          pending = [];
+          renderPending();
+        } catch {
+          // Left in the composer so the visitor can retry — matches the
+          // built-in report form's own "don't eat the user's input on
+          // failure" behavior.
+        } finally {
+          sending = false;
+          updateSendState();
+        }
+      }
+
+      handlers
+        .listMessages(row.id)
+        .then((msgs) => {
+          messages = msgs;
+          renderMessages();
+        })
+        .catch(() => {
+          list.innerHTML = `<p class="pr-detail-section-empty">Couldn't load the discussion.</p>`;
+        });
+
+      currentDiscussionDisconnect = handlers.watchDiscussion(
+        row.id,
+        (msg) => {
+          if (messages.some((m) => m.id === msg.id)) return;
+          messages = [...messages, msg];
+          renderMessages();
+        },
+        (connected) => liveDot.classList.toggle("pr-live-connected", connected),
+      );
     }
 
     let loadState: "loading" | "loaded" | "error" = "loading";
@@ -1488,7 +1894,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     // z-index than the last), so Escape backs out one step at a time, same
     // as each layer's own close button does, not the whole stack at once.
     if (!previewOverlay.hidden) previewOverlay.hidden = true;
-    else if (!detailOverlay.hidden) detailOverlay.hidden = true;
+    else if (!detailOverlay.hidden) closeDetail();
     else if (!overlay.hidden || !issuesOverlay.hidden) close();
     else if (!menu.hidden) closeMenu();
   }
@@ -1499,7 +1905,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       return;
     }
     if (e.target === detailOverlay) {
-      detailOverlay.hidden = true;
+      closeDetail();
       return;
     }
     if (e.target === overlay || e.target === issuesOverlay) close();
@@ -1529,6 +1935,8 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   function destroy() {
     document.removeEventListener("keydown", onKeydown);
     document.removeEventListener("click", onDocumentClick);
+    currentDiscussionDisconnect?.();
+    currentDiscussionDisconnect = null;
     host.remove();
   }
 

@@ -1,5 +1,13 @@
+import { io } from "socket.io-client";
 import { captureContext } from "./context";
-import { listReports, submitReport } from "./api";
+import {
+  listMessages,
+  listReports,
+  sendMessage,
+  submitReport,
+  uploadMessageAttachment,
+  type DiscussionMessage,
+} from "./api";
 import { mountWidget, type WidgetHandle } from "./widget";
 import type { InitOptions, ReportInput, Reporter } from "./types";
 
@@ -61,8 +69,64 @@ export function init(options: InitOptions): void {
         const s = requireState();
         return listReports(s.apiBaseUrl, s.key, s.projectId);
       },
+      listMessages: (reportId) => {
+        const s = requireState();
+        return listMessages(s.apiBaseUrl, s.key, reportId);
+      },
+      sendMessage: (reportId, input) => {
+        const s = requireState();
+        return sendMessage(s.apiBaseUrl, s.key, reportId, {
+          ...input,
+          reporterName: s.reporter?.name,
+        });
+      },
+      uploadMessageAttachment: (reportId, file) => {
+        const s = requireState();
+        return uploadMessageAttachment(s.apiBaseUrl, s.key, reportId, file);
+      },
+      watchDiscussion: (reportId, onMessage, onStatusChange) =>
+        watchDiscussion(reportId, onMessage, onStatusChange),
     });
   }
+}
+
+/**
+ * The socket server lives at the API origin, not under `/api/v1` — same
+ * host, different protocol/path (Socket.IO's own default `/socket.io/`).
+ * `new URL(...).origin` strips whatever path `apiBaseUrl` has.
+ */
+function socketOrigin(apiBaseUrl: string): string {
+  try {
+    return new URL(apiBaseUrl).origin;
+  } catch {
+    return apiBaseUrl;
+  }
+}
+
+/**
+ * One report's Client Discussion room at a time — see widget.ts's
+ * `WidgetHandlers.watchDiscussion` doc comment. `transports: ["websocket"]`
+ * skips Socket.IO's default long-polling fallback/upgrade dance entirely;
+ * a widget embedded on an arbitrary third-party site has no same-origin
+ * cookie/session concerns polling exists to work around here, so there's
+ * no reason to pay for two round trips before landing on the transport
+ * that was always going to win.
+ */
+function watchDiscussion(
+  reportId: string,
+  onMessage: (msg: DiscussionMessage) => void,
+  onStatusChange: (connected: boolean) => void,
+): () => void {
+  const s = requireState();
+  const socket = io(socketOrigin(s.apiBaseUrl), {
+    auth: { apiKey: s.key, reportId },
+    transports: ["websocket"],
+  });
+  socket.on("connect", () => onStatusChange(true));
+  socket.on("disconnect", () => onStatusChange(false));
+  socket.on("connect_error", () => onStatusChange(false));
+  socket.on("report:comment:new", (payload: DiscussionMessage) => onMessage(payload));
+  return () => socket.disconnect();
 }
 
 async function submit(input: ReportInput, attachments?: File[]): Promise<{ id: string }> {
