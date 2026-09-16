@@ -195,7 +195,7 @@ const STYLES = `
    (Reported/Report Title/Submitted by/Priority/Status/Due Date/Action,
    matching llemr's real admin/reports page exactly) — needs real room. */
 .pr-panel-wide { max-width: 960px; }
-.pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #0f172a; }
+.pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; color: #0f172a; }
 .pr-subtitle { margin: 0 0 16px; font-size: 13px; color: #6b7280; }
 .pr-form-divider { border-top: 1px solid #e2e8f0; margin-top: 16px; padding-top: 16px; }
 .pr-field { margin-bottom: 14px; }
@@ -281,6 +281,19 @@ const STYLES = `
   transition: opacity 0.15s;
 }
 .pr-close:hover { opacity: 1; }
+/* Screen-reader-only text — matches llemr's own close button having both
+   an aria-label AND a visually-hidden text node. */
+.pr-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .pr-required { color: #ef4444; }
 
@@ -421,9 +434,9 @@ const STYLES = `
 .pr-badge {
   flex-shrink: 0;
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 2px 10px;
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -465,27 +478,27 @@ const STYLES = `
 }
 .pr-detail-info-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pr-detail-info-item span:not(.pr-badge) {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: #1e293b;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pr-detail-info-item svg { color: #64748b; flex-shrink: 0; }
+.pr-detail-info-item svg { width: 16px; height: 16px; color: #64748b; flex-shrink: 0; }
 .pr-detail-section { margin-bottom: 20px; }
 .pr-detail-section:last-child { margin-bottom: 0; }
 .pr-detail-section-label {
   display: block;
   margin-bottom: 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #64748b;
 }
-.pr-detail-section-body { font-size: 13px; color: #1e293b; line-height: 1.6; margin: 0; white-space: pre-wrap; }
-.pr-detail-section-empty { font-size: 13px; color: #94a3b8; margin: 0; }
+.pr-detail-section-body { font-size: 14px; color: #1e293b; line-height: 1.6; margin: 0; white-space: pre-wrap; }
+.pr-detail-section-empty { font-size: 14px; color: #94a3b8; margin: 0; }
 
 .pr-attachment-list { display: flex; flex-wrap: wrap; gap: 8px; }
 /* Sized and behaved exactly like llemr's real thumbnail (h-28 w-28,
@@ -661,7 +674,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.type = "button";
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.innerHTML = CLOSE_X_ICON;
+    closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
     closeBtn.addEventListener("click", close);
     panel.appendChild(closeBtn);
 
@@ -754,7 +767,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.type = "button";
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.innerHTML = CLOSE_X_ICON;
+    closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
     closeBtn.addEventListener("click", close);
     panel.appendChild(closeBtn);
 
@@ -962,7 +975,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.type = "button";
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.innerHTML = CLOSE_X_ICON;
+    closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
     closeBtn.addEventListener("click", close);
     issuesPanel.appendChild(closeBtn);
 
@@ -1066,7 +1079,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       closeBtn.type = "button";
       closeBtn.className = "pr-close";
       closeBtn.setAttribute("aria-label", "Close");
-      closeBtn.innerHTML = CLOSE_X_ICON;
+      closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
       closeBtn.addEventListener("click", () => (detailOverlay.hidden = true));
       detailPanel.appendChild(closeBtn);
 
