@@ -669,19 +669,40 @@ const STYLES = `
 }
 .pr-msg-mine .pr-discussion-bubble { background: #6366f1; color: #fff; border-bottom-right-radius: 4px; }
 .pr-msg-theirs .pr-discussion-bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
-.pr-discussion-bubble-attachments { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.pr-discussion-bubble-attachments { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .pr-discussion-bubble-attachment {
   display: flex;
   align-items: center;
   gap: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 5px 8px;
   font-size: 12px;
+  font-family: inherit;
+  text-align: left;
   text-decoration: none;
   color: inherit;
   opacity: 0.9;
   cursor: pointer;
 }
+.pr-msg-theirs .pr-discussion-bubble-attachment { background: rgba(15, 23, 42, 0.06); }
 .pr-discussion-bubble-attachment:hover { opacity: 1; text-decoration: underline; }
 .pr-discussion-bubble-attachment svg { flex-shrink: 0; }
+/* Real thumbnail, not a filename pill — see renderMessages()'s comment. */
+.pr-discussion-bubble-image {
+  display: block;
+  width: 140px;
+  height: 105px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.15);
+}
+.pr-discussion-bubble-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pr-discussion-bubble-image .pr-img-fallback { width: 100%; height: 100%; }
 .pr-discussion-composer {
   border: 1px solid #e5e7eb;
   border-radius: 10px;
@@ -1655,6 +1676,20 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       let pending: PendingAttachment[] = [];
       let sending = false;
 
+      /**
+       * A sent message arrives twice by design — once as `handleSend`'s own
+       * REST response, once as this socket's own `report:comment:new` echo
+       * (the backend broadcasts to the whole `report:<id>` room, sender
+       * included, since it has no way to know which connection just sent
+       * it). Whichever of the two arrives first wins; the id check here is
+       * what stops the second one from rendering the same message twice.
+       */
+      function addMessageIfNew(msg: DiscussionMessage) {
+        if (messages.some((m) => m.id === msg.id)) return;
+        messages = [...messages, msg];
+        renderMessages();
+      }
+
       function renderMessages() {
         if (messages.length === 0) {
           list.innerHTML = `<p class="pr-detail-section-empty">No messages yet — say hello.</p>`;
@@ -1682,12 +1717,39 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             const attWrap = document.createElement("div");
             attWrap.className = "pr-discussion-bubble-attachments";
             for (const a of m.attachments) {
-              const attBtn = document.createElement("button");
-              attBtn.type = "button";
-              attBtn.className = "pr-discussion-bubble-attachment";
-              attBtn.innerHTML = `${a.kind === "image" ? EYE_ICON : FILE_ICON}<span>${esc(a.name)}</span>`;
-              attBtn.addEventListener("click", () => openPreview(a));
-              attWrap.appendChild(attBtn);
+              if (a.kind === "image") {
+                // A real thumbnail, not just a filename pill — a chat
+                // bubble linking to an image by text alone reads as
+                // broken/half-finished next to any real messaging UI.
+                const thumbBtn = document.createElement("button");
+                thumbBtn.type = "button";
+                thumbBtn.className = "pr-discussion-bubble-image";
+                thumbBtn.title = a.name;
+                thumbBtn.addEventListener("click", () => openPreview(a));
+                const img = document.createElement("img");
+                img.src = a.url;
+                img.alt = a.name;
+                img.addEventListener(
+                  "error",
+                  () => {
+                    const fallback = document.createElement("div");
+                    fallback.className = "pr-img-fallback";
+                    fallback.setAttribute("aria-hidden", "true");
+                    fallback.innerHTML = IMAGE_OFF_ICON;
+                    img.replaceWith(fallback);
+                  },
+                  { once: true },
+                );
+                thumbBtn.appendChild(img);
+                attWrap.appendChild(thumbBtn);
+              } else {
+                const attBtn = document.createElement("button");
+                attBtn.type = "button";
+                attBtn.className = "pr-discussion-bubble-attachment";
+                attBtn.innerHTML = `${FILE_ICON}<span>${esc(a.name)}</span>`;
+                attBtn.addEventListener("click", () => openPreview(a));
+                attWrap.appendChild(attBtn);
+              }
             }
             bubble.appendChild(attWrap);
           }
@@ -1772,8 +1834,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             message: text,
             attachmentIds: readyAttachmentIds.length ? readyAttachmentIds : undefined,
           });
-          messages = [...messages, sent];
-          renderMessages();
+          addMessageIfNew(sent);
           textarea.value = "";
           pending = [];
           renderPending();
@@ -1799,11 +1860,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
       currentDiscussionDisconnect = handlers.watchDiscussion(
         row.id,
-        (msg) => {
-          if (messages.some((m) => m.id === msg.id)) return;
-          messages = [...messages, msg];
-          renderMessages();
-        },
+        (msg) => addMessageIfNew(msg),
         (connected) => liveDot.classList.toggle("pr-live-connected", connected),
       );
     }

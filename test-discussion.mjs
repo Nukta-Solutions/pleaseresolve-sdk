@@ -199,6 +199,20 @@ async function run() {
     });
     console.log("5. Widget's own text message rendered:", JSON.stringify(firstMsg));
 
+    // Real bug caught in production: the sent message arrives twice (once
+    // as handleSend's own REST response, once as this socket's own echo of
+    // its own broadcast) — give both a moment to land, then assert exactly
+    // one bubble exists, not two.
+    await new Promise((r) => setTimeout(r, 1500));
+    const dupCount = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      return [...root.querySelectorAll(".pr-msg-mine .pr-discussion-bubble")].filter((b) =>
+        b.textContent.includes("Hi, this checkout bug is still happening."),
+      ).length;
+    });
+    console.log("5b. Copies of that message rendered (must be exactly 1):", dupCount);
+    if (dupCount !== 1) throw new Error(`Expected exactly 1 copy of the sent message, found ${dupCount}`);
+
     // --- Send a message with a file attachment ---
     const attachPath = join(ROOT, ".discussion-e2e-attachment.txt");
     await writeFile(attachPath, "discussion e2e attachment contents");
@@ -235,6 +249,46 @@ async function run() {
     });
     console.log("6. Message with attachment rendered, attachment name:", attachmentName);
     await rm(attachPath);
+
+    // --- Send a message with an IMAGE attachment — must render as a real
+    // thumbnail (.pr-discussion-bubble-image img), not a filename pill ---
+    const imgPath = join(ROOT, ".discussion-e2e-image.png");
+    const PNG_1PX_RED = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    await writeFile(imgPath, PNG_1PX_RED);
+    const imgInputHandle = await page.evaluateHandle(() =>
+      document.querySelector("[data-pleaseresolve-widget]").shadowRoot.querySelector(".pr-discussion-composer input[type=file]"),
+    );
+    await imgInputHandle.uploadFile(imgPath);
+    await imgInputHandle.evaluate((el) => el.dispatchEvent(new Event("change", { bubbles: true })));
+    await page.waitForFunction(
+      () => {
+        const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+        const chip = root.querySelector(".pr-discussion-pending-chip");
+        return chip && !chip.textContent.includes("uploading");
+      },
+      { timeout: 8000 },
+    );
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      root.querySelector(".pr-discussion-send-btn").click();
+    });
+    await page.waitForFunction(
+      () => document.querySelector("[data-pleaseresolve-widget]").shadowRoot.querySelector(".pr-msg-mine .pr-discussion-bubble-image img"),
+      { timeout: 8000 },
+    );
+    await new Promise((r) => setTimeout(r, 1500)); // let the image load + any duplicate echo settle
+    const imageCheck = await page.evaluate(() => {
+      const root = document.querySelector("[data-pleaseresolve-widget]").shadowRoot;
+      const thumbs = [...root.querySelectorAll(".pr-msg-mine .pr-discussion-bubble-image")];
+      const filePills = root.querySelectorAll(".pr-msg-mine .pr-discussion-bubble-attachment").length;
+      return { thumbCount: thumbs.length, hasImgTag: thumbs.every((t) => !!t.querySelector("img")), filePills };
+    });
+    console.log("6b. Image attachment rendered as a real thumbnail:", JSON.stringify(imageCheck));
+    if (imageCheck.thumbCount !== 1) throw new Error(`Expected exactly 1 image thumbnail, found ${imageCheck.thumbCount}`);
+    await rm(imgPath);
 
     // --- Realtime: staff replies via the dashboard API while the page stays open ---
     await api(`/organizations/${ctx.orgId}/reports/${reportId}/comments`, {
