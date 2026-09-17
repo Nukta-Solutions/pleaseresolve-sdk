@@ -1,6 +1,6 @@
 {
   "name": "@pleaseresolve/sdk",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "Embeddable issue-reporting widget for Please Resolve — script tag today, npm package in Phase 3.",
   "license": "SEE LICENSE IN LICENSE",
   "keywords": [
