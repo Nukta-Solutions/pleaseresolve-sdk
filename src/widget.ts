@@ -127,6 +127,16 @@ const PERSON_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
   <circle cx="12" cy="7" r="4"/>
 </svg>`;
 
+// lucide-react's real chevron-left/chevron-right paths — the Issues table
+// pagination's Previous/Next buttons (see .pr-pagination).
+const CHEVRON_LEFT_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m15 18-6-6 6-6"/>
+</svg>`;
+
+const CHEVRON_RIGHT_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m9 18 6-6-6-6"/>
+</svg>`;
+
 const CLOCK_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M12 6v6l4 2"/>
   <circle cx="12" cy="12" r="10"/>
@@ -241,12 +251,17 @@ const STYLES = `
   padding: 16px;
 }
 .pr-overlay[hidden] { display: none; }
+/* Issues list opens truly full-screen, not just a bigger centered card —
+   drop the overlay's own padding so pr-panel-full below can reach every
+   edge of the viewport. */
+.pr-overlay-full { padding: 0; }
 
 /* Matches llemr's real DialogContent base exactly (src/components/ui/dialog.tsx):
    "border p-6 shadow-lg sm:rounded-lg" — this panel previously had no
    border at all, a heavier custom shadow, and rounded-xl (12px) instead of
    the real rounded-lg (8px). */
 .pr-panel {
+  position: relative;
   width: 100%;
   max-width: 640px;
   max-height: calc(100vh - 32px);
@@ -261,6 +276,116 @@ const STYLES = `
    (Reported/Report Title/Submitted by/Priority/Status/Due Date/Action,
    matching llemr's real admin/reports page exactly) — needs real room. */
 .pr-panel-wide { max-width: 960px; }
+/* Issues list opens nearly edge-to-edge — flush left/right/bottom against
+   the overlay (paired with pr-overlay-full, which drops the overlay's own
+   padding), but leaves a fixed 30px gap at the top only. Positioned
+   absolute (against .pr-overlay's own position:fixed) rather than sized
+   with vh/vw, since that's what lets top alone carry the gap while
+   right/bottom/left stay flush at 0. Slides up from the bottom edge rather
+   than just appearing, since a panel this size popping in instantly reads
+   as a jump-cut rather than an opening sheet. Restarts correctly on every
+   open because .pr-overlay[hidden] sets display:none — toggling that off
+   is a fresh render as far as the animation is concerned, so no JS
+   re-trigger logic is needed. */
+@keyframes pr-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.pr-panel-full {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  border: none;
+  border-radius: 16px 16px 0 0;
+  box-shadow: none;
+  /* More breathing room than the base .pr-panel's 24px now that this
+     panel spans nearly the whole viewport — content sitting only 24px
+     off a screen-wide edge read as cramped. */
+  padding: 32px;
+  animation: pr-slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Reverse of pr-slide-up, played by the close (X) button before the overlay
+   actually hides — see closeIssuesAnimated(). Declared after pr-panel-full
+   so it wins the animation shorthand on elements carrying both classes
+   (same specificity, later source order wins); forwards holds the
+   off-screen position so nothing flashes back before hidden is set. */
+@keyframes pr-slide-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+.pr-panel-full-closing {
+  animation: pr-slide-down 0.6s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+/* The backdrop (.pr-overlay's own rgba(0,0,0,0.8) background) was staying
+   fully opaque for the whole slide-down, then cutting to the host page in
+   one frame the instant hidden flipped at the end — a visible jolt.
+   Fading it out over the same duration means it's already transparent by
+   the time that instant hide happens, so the hide itself is invisible. */
+@keyframes pr-overlay-fade-out {
+  from { background: rgba(0, 0, 0, 0.8); }
+  to { background: rgba(0, 0, 0, 0); }
+}
+.pr-overlay-full-closing {
+  animation: pr-overlay-fade-out 0.6s ease-out forwards;
+}
+/* Detail drawer's overlay has no dark scrim at all — the drawer separates
+   from the page behind it with pr-panel-drawer's own box-shadow instead of
+   dimming/blurring everything behind it, so the Issues table underneath
+   (or the host page, when opened directly) stays fully visible and legible
+   while the drawer is open. */
+.pr-overlay-no-scrim { background: transparent; }
+/* Keeps the detail drawer's overlay contained to the same rectangle as the
+   Issues panel (pr-panel-full: top 30px, flush right/bottom/left) instead
+   of the full viewport — a drawer "inside" the Issues modal, not a second
+   independent full-screen layer stacked on top of it with its own gap/
+   corner treatment. Only overrides top; pr-overlay-full's inset:0 already
+   leaves right/bottom/left at 0, which is what we want here too. This
+   value must match pr-panel-full's own top offset above. */
+.pr-overlay-detail-bounds { top: 30px; }
+/* Report detail is a right-side drawer, not a centered dialog — fills the
+   full height of the bounds above (pr-overlay-detail-bounds), flush
+   against the right/bottom edges, fixed width capped so it never gets
+   wider than the viewport on a small screen. Slides in from off-screen
+   right rather than the base panel's scale/fade-in, matching the same
+   open-as-motion treatment as the Issues panel's slide-up. Top-right
+   corner rounds to match pr-panel-full's own top-right corner, since they
+   sit at the same point — this drawer reads as carved out of that panel,
+   not a separate shape overlapping it. */
+@keyframes pr-slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.pr-panel-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: min(480px, 100vw);
+  max-width: min(480px, 100vw);
+  height: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0 16px 0 0;
+  box-shadow: -12px 0 24px -8px rgba(0, 0, 0, 0.25);
+  animation: pr-slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Reverse of pr-slide-in-right, played by the drawer's own close (X)
+   button — see closeDetailAnimated(). Same forwards/ordering rationale as
+   pr-panel-full-closing above. */
+@keyframes pr-slide-out-right {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+.pr-panel-drawer-closing {
+  animation: pr-slide-out-right 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
 /* llemr's real DialogTitle (dialog.tsx): "text-lg leading-none font-semibold
    tracking-tight" — this was missing the tight line-height and letter-spacing. */
 .pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; color: #0f172a; }
@@ -469,9 +594,27 @@ const STYLES = `
 .pr-btn-sm-outline:hover { background: #f9fafb; }
 .pr-btn-sm-primary { background: #6366f1; color: #fff; border: 1px solid transparent; }
 .pr-btn-sm-primary:hover { background: #4f46e5; }
+.pr-btn-sm:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 
 .pr-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
 .pr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* Issues table pagination — client-side, since this widget's public read
+   API (listReports) returns every report for the project in one response
+   with no page/limit params of its own to page through server-side. */
+.pr-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+.pr-pagination-controls { display: flex; align-items: center; gap: 8px; }
+/* Previous/Next as square icon buttons (chevrons, not text) with the
+   current/total page count between them. */
+.pr-btn-icon { width: 32px; padding: 0; justify-content: center; }
+.pr-page-number { min-width: 44px; text-align: center; font-weight: 600; color: #374151; }
 .pr-table thead th {
   background: #f8fafc;
   text-align: left;
@@ -917,7 +1060,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   overlay.appendChild(panel);
 
   const issuesOverlay = document.createElement("div");
-  issuesOverlay.className = "pr-overlay";
+  issuesOverlay.className = "pr-overlay pr-overlay-full";
   issuesOverlay.hidden = true;
   issuesOverlay.setAttribute("role", "dialog");
   issuesOverlay.setAttribute("aria-modal", "true");
@@ -926,15 +1069,24 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
   const issuesPanel = document.createElement("div");
   issuesPanel.className = "pr-panel";
-  issuesPanel.style.position = "relative";
+  // No inline position here (unlike the other panels) — .pr-panel now
+  // carries position:relative by default, and pr-panel-full below needs
+  // to override it to absolute; an inline style would out-specificity
+  // that class override.
   issuesOverlay.appendChild(issuesPanel);
 
   // A third overlay, stacked on top of the other two — the Action column's
   // "View" button (openDetail below) opens this over the Issues table
   // rather than replacing it, matching llemr's own ReportDetailModal
-  // opening over its Issues table the same way.
+  // opening over its Issues table the same way. Still a sibling of
+  // issuesOverlay under root, not a DOM child of issuesPanel — openIssues()
+  // rebuilds issuesPanel via innerHTML = "" on every open, which would
+  // destroy this (and its whole openDetail closure) if it lived inside.
+  // pr-overlay-detail-bounds is what makes it read as "inside" the Issues
+  // modal despite that: same box as pr-panel-full, not the full viewport.
   const detailOverlay = document.createElement("div");
-  detailOverlay.className = "pr-overlay";
+  detailOverlay.className =
+    "pr-overlay pr-overlay-full pr-overlay-no-scrim pr-overlay-detail-bounds";
   detailOverlay.hidden = true;
   detailOverlay.setAttribute("role", "dialog");
   detailOverlay.setAttribute("aria-modal", "true");
@@ -943,8 +1095,11 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   root.appendChild(detailOverlay);
 
   const detailPanel = document.createElement("div");
-  detailPanel.className = "pr-panel pr-panel-wide";
-  detailPanel.style.position = "relative";
+  // pr-panel-drawer, not pr-panel-wide — a right-side sliding drawer
+  // rather than a centered dialog. No inline position here (same reason
+  // as issuesPanel above): .pr-panel's own position:relative would
+  // out-specificity pr-panel-drawer's position:absolute override.
+  detailPanel.className = "pr-panel pr-panel-drawer";
   detailOverlay.appendChild(detailPanel);
 
   // A fourth overlay, stacked over the detail modal — matches llemr's real
@@ -1258,6 +1413,43 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     previewOverlay.hidden = true;
   }
 
+  /**
+   * The Issues panel's own X button: plays the pr-slide-down reverse of its
+   * opening animation (and fades the backdrop out alongside it) before
+   * actually hiding, instead of vanishing instantly like every other close
+   * path (outside click, Escape, other panels' X buttons) still does —
+   * matches CLOSE_ANIMATION_MS below.
+   */
+  const CLOSE_ANIMATION_MS = 600;
+  function closeIssuesAnimated() {
+    issuesPanel.classList.add("pr-panel-full-closing");
+    issuesOverlay.classList.add("pr-overlay-full-closing");
+    window.setTimeout(() => {
+      issuesPanel.classList.remove("pr-panel-full-closing");
+      issuesOverlay.classList.remove("pr-overlay-full-closing");
+      close();
+    }, CLOSE_ANIMATION_MS);
+  }
+
+  /**
+   * The detail drawer's own X button: same treatment as
+   * closeIssuesAnimated() above, but slides right instead of down and
+   * calls closeDetail() (not the shared close()) — this drawer's X button
+   * only ever closed itself, not the whole overlay stack, and that scope
+   * doesn't change just because it now animates. No overlay fade needed
+   * here (unlike closeIssuesAnimated) — pr-overlay-no-scrim means there's
+   * no backdrop tint to begin with, so the wait just matches the panel's
+   * own pr-slide-out-right duration.
+   */
+  const DETAIL_CLOSE_ANIMATION_MS = 400;
+  function closeDetailAnimated() {
+    detailPanel.classList.add("pr-panel-drawer-closing");
+    window.setTimeout(() => {
+      detailPanel.classList.remove("pr-panel-drawer-closing");
+      closeDetail();
+    }, DETAIL_CLOSE_ANIMATION_MS);
+  }
+
   /** Matches llemr's own ReportList.tsx `formatDateTime` exactly (same toLocaleString options). */
   function formatDateTime(iso: string): string {
     const date = new Date(iso);
@@ -1288,14 +1480,14 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeMenu();
     issuesOverlay.hidden = false;
     issuesPanel.innerHTML = "";
-    issuesPanel.classList.add("pr-panel-wide");
+    issuesPanel.classList.add("pr-panel-full");
 
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
     closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
-    closeBtn.addEventListener("click", close);
+    closeBtn.addEventListener("click", closeIssuesAnimated);
     issuesPanel.appendChild(closeBtn);
 
     const header = document.createElement("div");
@@ -1364,9 +1556,42 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     const tbody = document.createElement("tbody");
     table.appendChild(tbody);
 
+    // Client-side only — see the .pr-pagination CSS comment above for why
+    // (listReports has no page/limit params to page through server-side).
+    const PAGE_SIZE = 10;
+    const pagination = document.createElement("div");
+    pagination.className = "pr-pagination";
+    issuesPanel.appendChild(pagination);
+
+    const pageInfo = document.createElement("span");
+    pagination.appendChild(pageInfo);
+
+    const pageControls = document.createElement("div");
+    pageControls.className = "pr-pagination-controls";
+    pagination.appendChild(pageControls);
+
+    const prevPageBtn = document.createElement("button");
+    prevPageBtn.type = "button";
+    prevPageBtn.className = "pr-btn-sm pr-btn-sm-outline pr-btn-icon";
+    prevPageBtn.setAttribute("aria-label", "Previous page");
+    prevPageBtn.innerHTML = CHEVRON_LEFT_ICON;
+    pageControls.appendChild(prevPageBtn);
+
+    const pageNumber = document.createElement("span");
+    pageNumber.className = "pr-page-number";
+    pageControls.appendChild(pageNumber);
+
+    const nextPageBtn = document.createElement("button");
+    nextPageBtn.type = "button";
+    nextPageBtn.className = "pr-btn-sm pr-btn-sm-outline pr-btn-icon";
+    nextPageBtn.setAttribute("aria-label", "Next page");
+    nextPageBtn.innerHTML = CHEVRON_RIGHT_ICON;
+    pageControls.appendChild(nextPageBtn);
+
     type Row = ReportStatusSummary;
     let rows: Row[] = [];
     let query = "";
+    let currentPage = 1;
 
     function badgeHtml(meta: Record<string, { label: string; tone: string }>, key: string | undefined): string {
       // Falls back to a plain neutral badge for values llemr's own UI has no
@@ -1484,7 +1709,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       closeBtn.className = "pr-close";
       closeBtn.setAttribute("aria-label", "Close");
       closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
-      closeBtn.addEventListener("click", closeDetail);
+      closeBtn.addEventListener("click", closeDetailAnimated);
       detailPanel.appendChild(closeBtn);
 
       const titleEl = document.createElement("h2");
@@ -1870,10 +2095,12 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     function renderRows() {
       if (loadState === "loading") {
         tbody.innerHTML = `<tr><td colspan="7" class="pr-empty">Loading…</td></tr>`;
+        pagination.hidden = true;
         return;
       }
       if (loadState === "error") {
         tbody.innerHTML = `<tr><td colspan="7" class="pr-empty">Couldn't load issues — try Refresh.</td></tr>`;
+        pagination.hidden = true;
         return;
       }
 
@@ -1892,10 +2119,18 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         tbody.innerHTML = `<tr><td colspan="7" class="pr-empty">${
           rows.length === 0 ? "No issues found" : "No matching issues"
         }</td></tr>`;
+        pagination.hidden = true;
         return;
       }
 
-      tbody.innerHTML = filtered
+      // Client-side pagination — clamp first in case a search/refresh made
+      // the filtered set shrink out from under whatever page we were on.
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      currentPage = Math.min(currentPage, totalPages);
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const pageRows = filtered.slice(start, start + PAGE_SIZE);
+
+      tbody.innerHTML = pageRows
         .map((r) => {
           const dueDate = r.dueDate ? formatDateTime(r.dueDate) : "--";
           const submittedBy = r.reporterName ? esc(r.reporterName) : "—";
@@ -1910,7 +2145,22 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
           </tr>`;
         })
         .join("");
+
+      pagination.hidden = false;
+      pageInfo.textContent = `Showing ${start + 1}–${start + pageRows.length} of ${filtered.length}`;
+      pageNumber.textContent = `${currentPage} / ${totalPages}`;
+      prevPageBtn.disabled = currentPage <= 1;
+      nextPageBtn.disabled = currentPage >= totalPages;
     }
+
+    prevPageBtn.addEventListener("click", () => {
+      currentPage = Math.max(1, currentPage - 1);
+      renderRows();
+    });
+    nextPageBtn.addEventListener("click", () => {
+      currentPage += 1;
+      renderRows();
+    });
 
     // Event delegation — tbody.innerHTML is rebuilt wholesale on every
     // render, which would silently drop any listeners bound to individual
@@ -1924,6 +2174,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
     async function load() {
       loadState = "loading";
+      currentPage = 1;
       renderRows();
       try {
         rows = await handlers.listReports();
@@ -1937,6 +2188,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
     searchInput.addEventListener("input", () => {
       query = searchInput.value;
+      currentPage = 1;
       renderRows();
     });
     refreshBtn.addEventListener("click", () => void load());
@@ -1947,12 +2199,18 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   function onKeydown(e: KeyboardEvent) {
     if (e.key !== "Escape") return;
     // Topmost layer closes first — the preview lightbox sits over the
-    // detail modal, which sits over the Issues table (each a higher
+    // detail drawer, which sits over the Issues table (each a higher
     // z-index than the last), so Escape backs out one step at a time, same
     // as each layer's own close button does, not the whole stack at once.
+    // The Issues panel and detail drawer are both exceptions to that: only
+    // their own X buttons close them (closeIssuesAnimated /
+    // closeDetailAnimated) — Escape while either is open still consumes
+    // the keypress (so it doesn't fall through and close what's behind it)
+    // but does nothing to that panel itself.
     if (!previewOverlay.hidden) previewOverlay.hidden = true;
-    else if (!detailOverlay.hidden) closeDetail();
-    else if (!overlay.hidden || !issuesOverlay.hidden) close();
+    else if (!detailOverlay.hidden) return;
+    else if (!issuesOverlay.hidden) return;
+    else if (!overlay.hidden) close();
     else if (!menu.hidden) closeMenu();
   }
 
@@ -1961,11 +2219,12 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       previewOverlay.hidden = true;
       return;
     }
-    if (e.target === detailOverlay) {
-      closeDetail();
-      return;
-    }
-    if (e.target === overlay || e.target === issuesOverlay) close();
+    // No outside-click-to-close for the Issues panel or the detail drawer —
+    // only their own X buttons (closeIssuesAnimated / closeDetailAnimated)
+    // close them, so a click landing on the empty area around either
+    // (target === issuesOverlay / detailOverlay) is intentionally not
+    // handled here at all.
+    if (e.target === overlay) close();
   }
 
   function onDocumentClick(e: MouseEvent) {
