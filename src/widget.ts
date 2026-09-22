@@ -386,6 +386,35 @@ const STYLES = `
 .pr-panel-drawer-closing {
   animation: pr-slide-out-right 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
+/* Scoped overrides for elements this drawer shares with the Issues table
+   and New Issue form (.pr-title, .pr-close, .pr-form-divider, and the
+   .pr-badge-* tone classes) — descendant selectors so only this drawer
+   picks up the new "Main" design reference's values, leaving those other
+   surfaces on the widget's original palette. */
+.pr-panel-drawer .pr-title { font-size: 19px; line-height: 1.35; font-weight: 700; letter-spacing: normal; color: #171a22; }
+.pr-panel-drawer .pr-close { width: 26px; height: 26px; background: #f2f3f7; color: #5b6072; opacity: 1; }
+.pr-panel-drawer .pr-close:hover { background: #e4e7ee; }
+.pr-panel-drawer .pr-form-divider { border-top-color: #e4e7ee; }
+/* Priority badge (high/medium/low) and status badge (new/in_progress/
+   resolved/blocked/closed) reuse the SAME five tone classes
+   (pr-badge-destructive/warning/primary/resolved/neutral) but need
+   DIFFERENT colors per context — e.g. destructive means priority=high
+   (red) in one place and status=new (indigo) in the other. Scoping by
+   ancestor (.pr-detail-priority wraps only the priority badge;
+   .pr-detail-info-grid's 4th cell is the only badge inside the info grid)
+   disambiguates them instead of fighting over one tone name. Status
+   values with no direct mockup equivalent (in_progress, resolved) are
+   extended sensibly: in_progress reuses the mockup's "open" (active)
+   green, resolved gets a softened violet since neither "new" nor "open"
+   fits a completed-and-done state. */
+.pr-detail-priority .pr-badge-destructive { background: #fde3e1; color: #c0271f; }
+.pr-detail-priority .pr-badge-warning { background: #fceeda; color: #92600c; }
+.pr-detail-priority .pr-badge-primary { background: #e6f4ec; color: #1d6f42; }
+.pr-detail-info-grid .pr-badge-destructive { background: #eaecfb; color: #3547c4; }
+.pr-detail-info-grid .pr-badge-warning { background: #fde3e1; color: #c0271f; }
+.pr-detail-info-grid .pr-badge-primary { background: #e1f5e8; color: #15803d; }
+.pr-detail-info-grid .pr-badge-resolved { background: #efeafb; color: #6d28d9; }
+.pr-detail-info-grid .pr-badge-neutral { background: #edeef3; color: #5b6072; }
 /* llemr's real DialogTitle (dialog.tsx): "text-lg leading-none font-semibold
    tracking-tight" — this was missing the tight line-height and letter-spacing. */
 .pr-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; color: #0f172a; }
@@ -676,40 +705,58 @@ const STYLES = `
 }
 .pr-btn-view:hover { background: rgba(99, 102, 241, 0.08); }
 
-/* Report detail modal — matches llemr's real ReportDetailModal.tsx. */
+/* Report detail drawer — restyled to match the "Main" design reference
+   (a Space Grotesk / #3547C4-accent ticket-panel mockup): softer neutrals
+   (#333744/#8B90A0 text on #F7F8FA/#EDEEF3 surfaces) in place of the
+   original slate palette, tighter letter-spacing on section labels, and an
+   indigo (#3547C4) accent replacing this file's usual #6366f1 everywhere
+   within this drawer specifically — the Issues table and New Issue form
+   keep the original palette, since only this drawer was asked to adopt
+   the new design. Font-family intentionally NOT changed to the mockup's
+   Space Grotesk: this widget embeds on arbitrary third-party pages, and
+   pulling a Google Font in means an extra network request, FOUC, and a
+   real chance of tripping a customer's CSP — not a cost worth the
+   mismatch of one panel's typeface from the rest of the widget's system
+   font stack. These classes (.pr-detail-*, .pr-attachment-*) are only
+   ever used inside this drawer, so they're edited directly rather than
+   scoped under .pr-panel-drawer like .pr-title/.pr-close/.pr-badge-*
+   below, which are shared with the Issues table and New Issue form. */
 .pr-detail-info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 20px;
+  row-gap: 12px;
+  column-gap: 12px;
+  background: #f7f8fa;
+  border: 1px solid #edeef3;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 22px;
 }
 .pr-detail-info-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pr-detail-info-item span:not(.pr-badge) {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1e293b;
+  font-size: 13.5px;
+  color: #333744;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pr-detail-info-item svg { width: 16px; height: 16px; color: #64748b; flex-shrink: 0; }
-.pr-detail-section { margin-bottom: 20px; }
+/* stroke-width as a CSS property overrides the icon's own inline
+   stroke-width="2" presentation attribute — SVG presentation attributes
+   lose to any matching CSS declaration, inline style or stylesheet. */
+.pr-detail-info-item svg { width: 15px; height: 15px; color: #9297a6; stroke-width: 1.3; flex-shrink: 0; }
+.pr-detail-section { margin-bottom: 22px; }
 .pr-detail-section:last-child { margin-bottom: 0; }
 .pr-detail-section-label {
   display: block;
   margin-bottom: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #64748b;
+  color: #8b90a0;
 }
-.pr-detail-section-body { font-size: 14px; color: #1e293b; line-height: 1.6; margin: 0; white-space: pre-wrap; }
-.pr-detail-section-empty { font-size: 14px; color: #94a3b8; margin: 0; }
+.pr-detail-section-body { font-size: 14.5px; color: #333744; line-height: 1.55; margin: 0; white-space: pre-wrap; }
+.pr-detail-section-empty { font-size: 13.5px; color: #9297a6; margin: 0; }
 
 .pr-attachment-list { display: flex; flex-wrap: wrap; gap: 8px; }
 /* Sized and behaved exactly like llemr's real thumbnail (h-28 w-28,
@@ -727,7 +774,7 @@ const STYLES = `
   background: #f9fafb;
   cursor: pointer;
 }
-.pr-attachment-image:hover { border-color: #6366f1; }
+.pr-attachment-image:hover { border-color: #3547c4; }
 .pr-attachment-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pr-attachment-image-overlay {
   position: absolute;
@@ -749,13 +796,13 @@ const STYLES = `
   max-width: 220px;
   margin: 0;
   padding: 8px 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #edeef3;
   border-radius: 8px;
-  background: transparent;
+  background: #f7f8fa;
   text-decoration: none;
   cursor: pointer;
 }
-.pr-attachment-file:hover { background: #f9fafb; border-color: #6366f1; }
+.pr-attachment-file:hover { background: #f7f8fa; border-color: #3547c4; }
 /* llemr's real bg-primary/10 + text-primary (its own violet token, #9b5f97 —
    see .pr-badge-primary above), h-9 w-9 — matched exactly, not the widget's
    own indigo accent, since this is a literal element reproduction. */
@@ -775,12 +822,12 @@ const STYLES = `
   margin: 0;
   font-size: 12px;
   font-weight: 500;
-  color: #1e293b;
+  color: #333744;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pr-attachment-file-view { margin: 0; font-size: 10px; color: #64748b; }
+.pr-attachment-file-view { margin: 0; font-size: 10px; color: #8b90a0; }
 .pr-empty { padding: 24px 0; text-align: center; font-size: 13px; color: #9ca3af; }
 
 /* Discussion (Client Discussion) — no llemr equivalent exists (its
@@ -792,26 +839,49 @@ const STYLES = `
 .pr-discussion-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   max-height: 260px;
   overflow-y: auto;
-  padding: 2px;
+  background: #fafafb;
+  border: 1px solid #edeef3;
+  border-radius: 10px;
+  padding: 16px;
   margin-bottom: 10px;
 }
+/* "mine" stays a plain column (align-end); "theirs" becomes a row so an
+   avatar can sit to the left of the name/bubble stack — see
+   .pr-discussion-avatar and .pr-discussion-msg-body below. */
 .pr-discussion-msg { display: flex; flex-direction: column; max-width: 82%; }
 .pr-discussion-msg.pr-msg-mine { align-self: flex-end; align-items: flex-end; }
-.pr-discussion-msg.pr-msg-theirs { align-self: flex-start; align-items: flex-start; }
-.pr-discussion-msg-meta { font-size: 11px; color: #94a3b8; margin-bottom: 3px; padding: 0 2px; }
+.pr-discussion-msg.pr-msg-theirs { align-self: flex-start; flex-direction: row; align-items: flex-start; gap: 8px; }
+/* 24px initials circle, colored per sender name via a stable hash (see
+   avatarColor() near buildDiscussion) — only "theirs" messages get one;
+   "mine" doesn't need it, the same way the mockup drops the name on your
+   own messages since it's always obviously you. */
+.pr-discussion-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pr-discussion-msg-body { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.pr-discussion-msg-meta { font-size: 11.5px; color: #9297a6; margin-bottom: 4px; padding: 0 2px; }
 .pr-discussion-bubble {
-  border-radius: 12px;
-  padding: 8px 12px;
-  font-size: 13px;
+  border-radius: 14px;
+  padding: 9px 14px;
+  font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
 }
-.pr-msg-mine .pr-discussion-bubble { background: #6366f1; color: #fff; border-bottom-right-radius: 4px; }
-.pr-msg-theirs .pr-discussion-bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
+.pr-msg-mine .pr-discussion-bubble { background: #3547c4; color: #fff; border-bottom-right-radius: 4px; }
+.pr-msg-theirs .pr-discussion-bubble { background: #f2f3f7; color: #171a22; border-bottom-left-radius: 4px; }
 .pr-discussion-bubble-attachments { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .pr-discussion-bubble-attachment {
   display: flex;
@@ -847,9 +917,9 @@ const STYLES = `
 .pr-discussion-bubble-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pr-discussion-bubble-image .pr-img-fallback { width: 100%; height: 100%; }
 .pr-discussion-composer {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 8px;
+  border: 1px solid #e4e7ee;
+  border-radius: 12px;
+  padding: 10px 12px;
   background: #fff;
 }
 .pr-discussion-pending { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
@@ -858,8 +928,8 @@ const STYLES = `
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  background: #f1f5f9;
-  color: #475569;
+  background: #f2f3f7;
+  color: #5b6072;
   border-radius: 999px;
   padding: 3px 8px 3px 10px;
 }
@@ -876,14 +946,14 @@ const STYLES = `
   border: none;
   outline: none;
   resize: none;
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
-  color: #1e293b;
+  color: #171a22;
   min-height: 40px;
   max-height: 100px;
   padding: 4px;
 }
-.pr-discussion-input::placeholder { color: #94a3b8; }
+.pr-discussion-input::placeholder { color: #9297a6; }
 .pr-discussion-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
 .pr-discussion-attach-btn {
   display: flex;
@@ -894,31 +964,38 @@ const STYLES = `
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #64748b;
+  color: #5b6072;
   cursor: pointer;
 }
-.pr-discussion-attach-btn:hover { background: #f1f5f9; color: #1e293b; }
+.pr-discussion-attach-btn:hover { background: #f2f3f7; color: #171a22; }
+/* Rounded-rect, not a pill — the mockup's send button is border-radius:8px
+   like every other button in this design, unlike this widget's usual
+   pill-shaped primary buttons elsewhere. */
 .pr-discussion-send-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 7px 14px;
   border: none;
-  border-radius: 999px;
-  background: #6366f1;
+  border-radius: 8px;
+  background: #3547c4;
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
-.pr-discussion-send-btn:hover { background: #4f46e5; }
-.pr-discussion-send-btn:disabled { background: #a5a6f6; cursor: not-allowed; }
+.pr-discussion-send-btn:hover { background: #2c39a0; }
+.pr-discussion-send-btn:disabled { background: #3547c4; opacity: 0.45; cursor: not-allowed; }
 .pr-discussion-live-dot {
   display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #d1d5db;
+  /* Idle color matches the mockup's own dot (#D7DBE4); left as green
+     when connected rather than the mockup's indigo — this dot means "live
+     socket connected", not the mockup's "has messages", and green is the
+     clearer, more conventional signal for that regardless of palette. */
+  background: #d7dbe4;
   margin-left: 6px;
 }
 .pr-discussion-live-dot.pr-live-connected { background: #22c55e; }
@@ -1605,6 +1682,24 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
+    // Discussion avatar helpers (design reference's own algorithm,
+    // replicated as-is) — see renderMessages() in buildDiscussion below.
+    function initials(name: string): string {
+      const parts = name.trim().split(/\s+/);
+      const first = parts[0] ?? "";
+      const second = parts[1] ?? "";
+      const a = first[0] ?? "";
+      const b = parts.length > 1 ? (second[0] ?? "") : (first[1] ?? "");
+      return (a + b).toUpperCase();
+    }
+
+    const AVATAR_PALETTE = ["#3547C4", "#0F7A6C", "#B54708", "#7C3AED", "#1D6F42", "#B5237A"];
+    function avatarColor(name: string): string {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+      return AVATAR_PALETTE[hash % AVATAR_PALETTE.length] ?? AVATAR_PALETTE[0]!;
+    }
+
     /**
      * The Action column's "View" button — a real modal (not an inline
      * expand), matching llemr's ReportDetailModal.tsx: title, priority
@@ -1719,9 +1814,24 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       detailPanel.appendChild(titleEl);
 
       const priorityWrap = document.createElement("div");
-      priorityWrap.className = "pr-form-divider";
+      // pr-detail-priority: scopes this badge's tone colors separately
+      // from the status badge inside infoGrid below — see the CSS comment
+      // by .pr-detail-priority .pr-badge-destructive.
+      priorityWrap.className = "pr-form-divider pr-detail-priority";
       priorityWrap.innerHTML = badgeHtml(PRIORITY_META, row.priority);
       detailPanel.appendChild(priorityWrap);
+
+      // "Issue Details" label above the info grid — matches the design
+      // reference's information architecture (a labeled section, not just
+      // a floating grid); this widget's other sections (Description,
+      // Attachments, Discussion) already have one, this grid didn't.
+      const infoLabel = document.createElement("span");
+      infoLabel.className = "pr-detail-section-label";
+      infoLabel.style.display = "block";
+      infoLabel.style.marginTop = "14px";
+      infoLabel.style.marginBottom = "8px";
+      infoLabel.textContent = "Issue Details";
+      detailPanel.appendChild(infoLabel);
 
       // Same 2x2 layout as llemr's real modal: Person/Project on the first
       // row, Date/Status on the second — llemr's own info grid has no due
@@ -1925,10 +2035,28 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
           const row2 = document.createElement("div");
           row2.className = `pr-discussion-msg ${m.isExternal ? "pr-msg-mine" : "pr-msg-theirs"}`;
 
+          // "theirs" gets an avatar to its left and drops straight into a
+          // body wrapper (meta + bubble); "mine" has neither — it's always
+          // obviously you, so the meta line is just the time, matching the
+          // design reference's own mine/theirs asymmetry.
+          const bodyTarget = document.createElement("div");
+          if (!m.isExternal) {
+            const avatar = document.createElement("div");
+            avatar.className = "pr-discussion-avatar";
+            avatar.style.background = avatarColor(m.senderName);
+            avatar.textContent = initials(m.senderName);
+            row2.appendChild(avatar);
+            bodyTarget.className = "pr-discussion-msg-body";
+            row2.appendChild(bodyTarget);
+          }
+          const appendTo = m.isExternal ? row2 : bodyTarget;
+
           const meta = document.createElement("div");
           meta.className = "pr-discussion-msg-meta";
-          meta.textContent = `${m.senderName} · ${formatDateTime(m.createdAt)}`;
-          row2.appendChild(meta);
+          meta.textContent = m.isExternal
+            ? formatDateTime(m.createdAt)
+            : `${m.senderName} · ${formatDateTime(m.createdAt)}`;
+          appendTo.appendChild(meta);
 
           const bubble = document.createElement("div");
           bubble.className = "pr-discussion-bubble";
@@ -1978,7 +2106,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             }
             bubble.appendChild(attWrap);
           }
-          row2.appendChild(bubble);
+          appendTo.appendChild(bubble);
           list.appendChild(row2);
         }
         list.scrollTop = list.scrollHeight;
