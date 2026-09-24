@@ -1635,7 +1635,9 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
     // Client-side only — see the .pr-pagination CSS comment above for why
     // (listReports has no page/limit params to page through server-side).
-    const PAGE_SIZE = 10;
+    // Matches the backend's own LIST_MAX cap (public-report.service.ts) so
+    // every report the API can ever return for a project fits on one page.
+    const PAGE_SIZE = 100;
     const pagination = document.createElement("div");
     pagination.className = "pr-pagination";
     issuesPanel.appendChild(pagination);
