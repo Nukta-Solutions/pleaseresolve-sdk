@@ -1,9 +1,11 @@
 import { io } from "socket.io-client";
 import { captureContext } from "./context";
 import {
+  deleteMessage,
   listMessages,
   listReports,
   sendMessage,
+  updateMessage,
   submitReport,
   uploadMessageAttachment,
   type DiscussionMessage,
@@ -67,18 +69,29 @@ export function init(options: InitOptions): void {
       onSubmit: (input, attachments) => submit(input, attachments),
       listReports: () => {
         const s = requireState();
-        return listReports(s.apiBaseUrl, s.key, s.projectId);
+        return listReports(s.apiBaseUrl, s.key, s.projectId, s.reporter?.email);
       },
       listMessages: (reportId) => {
         const s = requireState();
-        return listMessages(s.apiBaseUrl, s.key, reportId);
+        return listMessages(s.apiBaseUrl, s.key, reportId, s.reporter?.email);
       },
       sendMessage: (reportId, input) => {
         const s = requireState();
-        return sendMessage(s.apiBaseUrl, s.key, reportId, {
-          ...input,
-          reporterName: s.reporter?.name,
-        });
+        return sendMessage(
+          s.apiBaseUrl,
+          s.key,
+          reportId,
+          { ...input, reporterName: s.reporter?.name },
+          s.reporter?.email,
+        );
+      },
+      updateMessage: (reportId, messageId, message) => {
+        const s = requireState();
+        return updateMessage(s.apiBaseUrl, s.key, reportId, messageId, message, s.reporter?.email);
+      },
+      deleteMessage: (reportId, messageId) => {
+        const s = requireState();
+        return deleteMessage(s.apiBaseUrl, s.key, reportId, messageId, s.reporter?.email);
       },
       uploadMessageAttachment: (reportId, file) => {
         const s = requireState();

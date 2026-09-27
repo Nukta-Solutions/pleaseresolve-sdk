@@ -106,6 +106,20 @@ export interface ReportStatusSummary {
   projectName: string | null;
   /** Only ones uploaded through this same widget's own attachment dropzone — never staff-added ones. */
   attachments: Array<{ url: string; name: string; contentType: string; kind: "image" | "file" }>;
+  /** True when the identify()'d email is this report's reporter (reporter-only Reply/Edit/Delete). Absent on older servers. */
+  viewerIsReporter?: boolean;
+}
+
+/**
+ * Headers for every public call. `X-Reporter-Email` is the identify()'d email;
+ * the server only compares it to the report's reporter and never echoes
+ * emails back, just yes/no flags (`viewerIsReporter`, `isMine`, `canReply`).
+ */
+function publicHeaders(apiKey: string, reporterEmail?: string, json = false): Record<string, string> {
+  const headers: Record<string, string> = { "X-Api-Key": apiKey };
+  if (reporterEmail) headers["X-Reporter-Email"] = reporterEmail;
+  if (json) headers["Content-Type"] = "application/json";
+  return headers;
 }
 
 /**
@@ -116,12 +130,13 @@ export async function fetchReport(
   apiBaseUrl: string,
   apiKey: string,
   reportId: string,
+  reporterEmail?: string,
 ): Promise<ReportStatusSummary> {
   const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}`;
 
   let res: Response;
   try {
-    res = await fetch(url, { headers: { "X-Api-Key": apiKey } });
+    res = await fetch(url, { headers: publicHeaders(apiKey, reporterEmail) });
   } catch {
     throw new PleaseResolveApiError("Could not reach the reporting server");
   }
@@ -152,13 +167,14 @@ export async function listReports(
   apiBaseUrl: string,
   apiKey: string,
   projectId?: string,
+  reporterEmail?: string,
 ): Promise<ReportStatusSummary[]> {
   const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
   const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports${qs}`;
 
   let res: Response;
   try {
-    res = await fetch(url, { headers: { "X-Api-Key": apiKey } });
+    res = await fetch(url, { headers: publicHeaders(apiKey, reporterEmail) });
   } catch {
     throw new PleaseResolveApiError("Could not reach the reporting server");
   }
@@ -187,6 +203,14 @@ export interface DiscussionMessage {
   senderName: string;
   /** Styling hook only ("your" message vs staff's) — see the backend's identical doc comment; there's no real per-visitor identity behind it. */
   isExternal: boolean;
+  /** Tombstone — show "This message was deleted" (message/attachments are blank). */
+  isDeleted?: boolean;
+  /** Quoted-reply target, resolved client-side against the loaded thread. */
+  parentId?: string | null;
+  /** The identify()'d reporter's own message — may edit/delete within the time windows. */
+  isMine?: boolean;
+  /** The identify()'d viewer is this report's reporter, so may reply. */
+  canReply?: boolean;
   attachments: Array<{ url: string; name: string; contentType: string; kind: "image" | "file" }>;
 }
 
@@ -211,11 +235,13 @@ export async function listMessages(
   apiBaseUrl: string,
   apiKey: string,
   reportId: string,
+  reporterEmail?: string,
 ): Promise<DiscussionMessage[]> {
-  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages`;
+  // includeDeleted=1: deleted messages come back as `isDeleted` tombstones.
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages?includeDeleted=1`;
   let res: Response;
   try {
-    res = await fetch(url, { headers: { "X-Api-Key": apiKey } });
+    res = await fetch(url, { headers: publicHeaders(apiKey, reporterEmail) });
   } catch {
     throw new PleaseResolveApiError("Could not reach the reporting server");
   }
@@ -227,20 +253,62 @@ export async function sendMessage(
   apiBaseUrl: string,
   apiKey: string,
   reportId: string,
-  input: { message: string; reporterName?: string; attachmentIds?: string[] },
+  input: { message: string; reporterName?: string; attachmentIds?: string[]; parentId?: string },
+  reporterEmail?: string,
 ): Promise<DiscussionMessage> {
   const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages`;
   let res: Response;
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+      headers: publicHeaders(apiKey, reporterEmail, true),
       body: JSON.stringify(input),
     });
   } catch {
     throw new PleaseResolveApiError("Could not reach the reporting server");
   }
   return parseJsonResponse<DiscussionMessage>(res);
+}
+
+/** `PATCH /api/v1/public/reports/:id/messages/:messageId` — reporter edits their own message (10-minute window, server-enforced). */
+export async function updateMessage(
+  apiBaseUrl: string,
+  apiKey: string,
+  reportId: string,
+  messageId: string,
+  message: string,
+  reporterEmail?: string,
+): Promise<DiscussionMessage> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages/${encodeURIComponent(messageId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PATCH",
+      headers: publicHeaders(apiKey, reporterEmail, true),
+      body: JSON.stringify({ message }),
+    });
+  } catch {
+    throw new PleaseResolveApiError("Could not reach the reporting server");
+  }
+  return parseJsonResponse<DiscussionMessage>(res);
+}
+
+/** `DELETE /api/v1/public/reports/:id/messages/:messageId` — reporter deletes their own message (15-minute window, server-enforced). */
+export async function deleteMessage(
+  apiBaseUrl: string,
+  apiKey: string,
+  reportId: string,
+  messageId: string,
+  reporterEmail?: string,
+): Promise<void> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/public/reports/${encodeURIComponent(reportId)}/messages/${encodeURIComponent(messageId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "DELETE", headers: publicHeaders(apiKey, reporterEmail) });
+  } catch {
+    throw new PleaseResolveApiError("Could not reach the reporting server");
+  }
+  await parseJsonResponse<null>(res);
 }
 
 /** `POST /api/v1/public/reports/:id/messages/attachments` — upload first, then pass the returned id in `sendMessage`'s `attachmentIds`. */

@@ -9,8 +9,12 @@ export interface WidgetHandlers {
   listMessages: (reportId: string) => Promise<DiscussionMessage[]>;
   sendMessage: (
     reportId: string,
-    input: { message: string; attachmentIds?: string[] },
+    input: { message: string; attachmentIds?: string[]; parentId?: string },
   ) => Promise<DiscussionMessage>;
+  /** Reporter-only: edit own message text (server enforces ownership + 10-minute window). */
+  updateMessage: (reportId: string, messageId: string, message: string) => Promise<DiscussionMessage>;
+  /** Reporter-only: delete own message (server enforces ownership + 15-minute window). */
+  deleteMessage: (reportId: string, messageId: string) => Promise<void>;
   uploadMessageAttachment: (
     reportId: string,
     file: File,
@@ -173,6 +177,7 @@ const IMAGE_OFF_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="no
 </svg>`;
 
 /** lucide-react's real "Paperclip" path data — the Discussion composer's attach button. */
+const MORE_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>`;
 const PAPERCLIP_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/>
 </svg>`;
@@ -934,6 +939,74 @@ const STYLES = `
   padding: 10px 12px;
   background: #fff;
 }
+/* Reporter-only message actions: hover-revealed ⋮ beside the bubble, a small
+   popover menu, reply quote/banner, inline edit and the deleted tombstone. */
+.pr-discussion-bubble-row { display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
+.pr-msg-mine .pr-discussion-bubble-row { flex-direction: row-reverse; }
+.pr-msg-menu-wrap { position: relative; flex-shrink: 0; }
+.pr-msg-menu-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: #9297a6; cursor: pointer;
+  opacity: 0; transition: opacity 0.15s ease, background 0.15s ease;
+}
+.pr-discussion-msg:hover .pr-msg-menu-btn,
+.pr-msg-menu-btn:focus-visible,
+.pr-msg-menu-btn[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .pr-msg-menu-btn { opacity: 1; } }
+.pr-msg-menu-btn:hover { background: #f2f3f7; color: #171a22; }
+.pr-msg-menu {
+  position: absolute; top: 100%; z-index: 5; min-width: 120px; margin-top: 2px;
+  display: flex; flex-direction: column; padding: 4px;
+  background: #fff; border: 1px solid #e4e7ee; border-radius: 8px;
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.18);
+}
+.pr-msg-menu.pr-msg-menu-up { top: auto; bottom: 100%; margin: 0 0 2px; }
+.pr-msg-mine .pr-msg-menu { right: 0; }
+.pr-msg-theirs .pr-msg-menu { left: 0; }
+.pr-msg-menu button {
+  border: none; background: transparent; text-align: left; cursor: pointer;
+  padding: 6px 10px; border-radius: 6px; font: inherit; font-size: 13px; color: #171a22;
+}
+.pr-msg-menu button:hover { background: #f2f3f7; }
+.pr-msg-menu button.pr-danger { color: #c0271f; }
+.pr-discussion-bubble.pr-deleted {
+  background: transparent; color: #9297a6; font-style: italic;
+  border: 1px dashed #d8dbe3;
+}
+.pr-discussion-quote {
+  max-width: 100%; margin-bottom: 4px; padding: 4px 8px;
+  font-size: 12px; color: #5b6072; background: #f2f3f7;
+  border-left: 2px solid #3547c4; border-radius: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pr-discussion-edit { display: flex; flex-direction: column; gap: 6px; width: min(320px, 100%); }
+.pr-discussion-edit textarea {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 56px;
+  padding: 8px 10px; border: 1px solid #d8dbe3; border-radius: 10px;
+  font: inherit; font-size: 14px; color: #171a22; outline: none;
+}
+.pr-discussion-edit textarea:focus { border-color: #3547c4; }
+.pr-discussion-edit-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.pr-discussion-edit-actions button {
+  border: none; border-radius: 8px; padding: 5px 12px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600;
+}
+.pr-discussion-edit-cancel { background: #f2f3f7; color: #333744; }
+.pr-discussion-edit-save { background: #3547c4; color: #fff; }
+.pr-discussion-edit-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.pr-discussion-edit-error { margin: 0; font-size: 12px; color: #c0271f; }
+.pr-discussion-reply-banner {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 8px;
+  font-size: 12px; color: #5b6072; background: #f2f3f7; border-radius: 8px;
+  border-left: 2px solid #3547c4;
+}
+.pr-discussion-reply-banner[hidden] { display: none; }
+.pr-discussion-reply-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-discussion-reply-cancel {
+  display: flex; border: none; background: transparent; color: #9297a6; cursor: pointer; padding: 2px;
+}
+.pr-discussion-reply-cancel:hover { color: #171a22; }
 .pr-discussion-pending { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .pr-discussion-pending-chip {
   display: flex;
@@ -2024,6 +2097,13 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       let messages: DiscussionMessage[] = [];
       let pending: PendingAttachment[] = [];
       let sending = false;
+      // Reporter-only actions (see api.ts's viewerIsReporter / isMine). The
+      // server re-checks ownership and time windows on every write; these only
+      // decide what the ⋮ menu offers.
+      const viewerIsReporter = row.viewerIsReporter === true;
+      let replyTo: DiscussionMessage | null = null;
+      let editingId: string | null = null;
+      let closeOpenMenu: (() => void) | null = null;
 
       /**
        * A sent message arrives twice by design — once as `handleSend`'s own
@@ -2039,11 +2119,231 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         renderMessages();
       }
 
-      function renderMessages() {
+      /**
+       * REST responses (send/edit) carry this viewer's flags (`isMine`,
+       * `canReply`); the socket echo doesn't. So a REST result always replaces
+       * whatever copy is already there — otherwise a socket echo that beat the
+       * REST response would leave the reporter's own new message un-editable.
+       */
+      function upsertMessage(msg: DiscussionMessage, stickToBottom = true) {
+        const exists = messages.some((m) => m.id === msg.id);
+        messages = exists ? messages.map((m) => (m.id === msg.id ? msg : m)) : [...messages, msg];
+        renderMessages(stickToBottom);
+      }
+
+      const EDIT_WINDOW_MS = 10 * 60 * 1000;
+      const DELETE_WINDOW_MS = 15 * 60 * 1000;
+      const withinWindow = (m: DiscussionMessage, windowMs: number) =>
+        Date.now() - new Date(m.createdAt).getTime() <= windowMs;
+
+      function snippetOf(m: DiscussionMessage): string {
+        if (m.isDeleted) return "Message deleted";
+        const text = (m.message || "").replace(/\s+/g, " ").trim();
+        if (text) return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+        return m.attachments.length ? "Attachment" : "";
+      }
+
+      function buildQuote(parentId: string): HTMLElement {
+        const quote = document.createElement("div");
+        quote.className = "pr-discussion-quote";
+        const parent = messages.find((x) => x.id === parentId);
+        quote.textContent = parent
+          ? `${parent.senderName}: ${snippetOf(parent)}`
+          : "Original message unavailable";
+        return quote;
+      }
+
+      function buildAttachments(m: DiscussionMessage): HTMLElement {
+        const attWrap = document.createElement("div");
+        attWrap.className = "pr-discussion-bubble-attachments";
+        for (const a of m.attachments) {
+          if (a.kind === "image") {
+            // A real thumbnail, not just a filename pill — a chat
+            // bubble linking to an image by text alone reads as
+            // broken/half-finished next to any real messaging UI.
+            const thumbBtn = document.createElement("button");
+            thumbBtn.type = "button";
+            thumbBtn.className = "pr-discussion-bubble-image";
+            thumbBtn.title = a.name;
+            thumbBtn.addEventListener("click", () => openPreview(a));
+            const img = document.createElement("img");
+            img.src = a.url;
+            img.alt = a.name;
+            img.addEventListener(
+              "error",
+              () => {
+                const fallback = document.createElement("div");
+                fallback.className = "pr-img-fallback";
+                fallback.setAttribute("aria-hidden", "true");
+                fallback.innerHTML = IMAGE_OFF_ICON;
+                img.replaceWith(fallback);
+              },
+              { once: true },
+            );
+            thumbBtn.appendChild(img);
+            attWrap.appendChild(thumbBtn);
+          } else {
+            const attBtn = document.createElement("button");
+            attBtn.type = "button";
+            attBtn.className = "pr-discussion-bubble-attachment";
+            attBtn.innerHTML = `${FILE_ICON}<span>${esc(a.name)}</span>`;
+            attBtn.addEventListener("click", () => openPreview(a));
+            attWrap.appendChild(attBtn);
+          }
+        }
+        return attWrap;
+      }
+
+      /** Inline editor that replaces the bubble while editing this message. */
+      function buildEditor(m: DiscussionMessage): HTMLElement {
+        const wrap = document.createElement("div");
+        wrap.className = "pr-discussion-edit";
+        const input = document.createElement("textarea");
+        input.value = m.message;
+        input.rows = 2;
+        const actions = document.createElement("div");
+        actions.className = "pr-discussion-edit-actions";
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "pr-discussion-edit-cancel";
+        cancel.textContent = "Cancel";
+        const save = document.createElement("button");
+        save.type = "button";
+        save.className = "pr-discussion-edit-save";
+        save.textContent = "Save";
+        const error = document.createElement("p");
+        error.className = "pr-discussion-edit-error";
+        error.hidden = true;
+        actions.append(cancel, save);
+        wrap.append(input, error, actions);
+
+        const syncSave = () => {
+          save.disabled = !input.value.trim();
+        };
+        cancel.addEventListener("click", () => {
+          editingId = null;
+          renderMessages(false);
+        });
+        const submit = async () => {
+          const text = input.value.trim();
+          if (!text) return;
+          save.disabled = true;
+          try {
+            const updated = await handlers.updateMessage(row.id, m.id, text);
+            editingId = null;
+            upsertMessage(updated, false);
+          } catch (err) {
+            error.textContent =
+              err instanceof Error && err.message ? err.message : "Couldn't save your changes.";
+            error.hidden = false;
+            syncSave();
+          }
+        };
+        save.addEventListener("click", () => void submit());
+        input.addEventListener("input", syncSave);
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            void submit();
+          } else if (e.key === "Escape") {
+            cancel.click();
+          }
+        });
+        requestAnimationFrame(() => {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        });
+        return wrap;
+      }
+
+      async function handleDelete(m: DiscussionMessage) {
+        if (!window.confirm("Delete this message? This can't be undone.")) return;
+        try {
+          await handlers.deleteMessage(row.id, m.id);
+          upsertMessage({ ...m, isDeleted: true, message: "", attachments: [] }, false);
+          if (replyTo?.id === m.id) setReplyTo(null);
+        } catch (err) {
+          window.alert(err instanceof Error && err.message ? err.message : "Couldn't delete the message.");
+        }
+      }
+
+      /**
+       * ⋮ button beside the bubble, revealed on hover (always shown on touch
+       * screens). Items are decided when the menu opens — not at render — so
+       * Edit/Delete disappear once their windows pass even if the thread
+       * hasn't re-rendered since.
+       */
+      function buildMenu(m: DiscussionMessage): HTMLElement {
+        const wrap = document.createElement("div");
+        wrap.className = "pr-msg-menu-wrap";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pr-msg-menu-btn";
+        btn.setAttribute("aria-label", "Message actions");
+        btn.setAttribute("aria-haspopup", "menu");
+        btn.setAttribute("aria-expanded", "false");
+        btn.innerHTML = MORE_ICON;
+        wrap.appendChild(btn);
+
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const wasOpen = btn.getAttribute("aria-expanded") === "true";
+          closeOpenMenu?.();
+          if (wasOpen) return;
+
+          const menu = document.createElement("div");
+          menu.className = "pr-msg-menu";
+          menu.setAttribute("role", "menu");
+          const addItem = (label: string, onClick: () => void, danger = false) => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.setAttribute("role", "menuitem");
+            item.textContent = label;
+            if (danger) item.classList.add("pr-danger");
+            item.addEventListener("click", (ev) => {
+              ev.stopPropagation();
+              closeOpenMenu?.();
+              onClick();
+            });
+            menu.appendChild(item);
+          };
+          if (viewerIsReporter) addItem("Reply", () => setReplyTo(m));
+          if (m.isMine && withinWindow(m, EDIT_WINDOW_MS)) {
+            addItem("Edit", () => {
+              editingId = m.id;
+              renderMessages(false);
+            });
+          }
+          if (m.isMine && withinWindow(m, DELETE_WINDOW_MS)) {
+            addItem("Delete", () => void handleDelete(m), true);
+          }
+          if (!menu.childElementCount) return;
+
+          wrap.appendChild(menu);
+          btn.setAttribute("aria-expanded", "true");
+          // Open upward when there's no room below inside the scrolling list.
+          const listRect = list.getBoundingClientRect();
+          if (menu.getBoundingClientRect().bottom > listRect.bottom) menu.classList.add("pr-msg-menu-up");
+
+          const onOutside = () => closeOpenMenu?.();
+          closeOpenMenu = () => {
+            menu.remove();
+            btn.setAttribute("aria-expanded", "false");
+            root.removeEventListener("click", onOutside);
+            closeOpenMenu = null;
+          };
+          root.addEventListener("click", onOutside);
+        });
+        return wrap;
+      }
+
+      function renderMessages(stickToBottom = true) {
+        closeOpenMenu?.();
         if (messages.length === 0) {
           list.innerHTML = `<p class="pr-detail-section-empty">No messages yet — say hello.</p>`;
           return;
         }
+        const previousScroll = list.scrollTop;
         list.innerHTML = "";
         for (const m of messages) {
           const row2 = document.createElement("div");
@@ -2072,58 +2372,60 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
             : `${m.senderName} · ${formatDateTime(m.createdAt)}`;
           appendTo.appendChild(meta);
 
+          if (m.parentId && !m.isDeleted) appendTo.appendChild(buildQuote(m.parentId));
+
+          if (editingId === m.id) {
+            appendTo.appendChild(buildEditor(m));
+            list.appendChild(row2);
+            continue;
+          }
+
+          const bubbleRow = document.createElement("div");
+          bubbleRow.className = "pr-discussion-bubble-row";
           const bubble = document.createElement("div");
           bubble.className = "pr-discussion-bubble";
-          if (m.message) {
-            const p = document.createElement("p");
-            p.style.margin = "0";
-            p.textContent = m.message;
-            bubble.appendChild(p);
-          }
-          if (m.attachments.length) {
-            const attWrap = document.createElement("div");
-            attWrap.className = "pr-discussion-bubble-attachments";
-            for (const a of m.attachments) {
-              if (a.kind === "image") {
-                // A real thumbnail, not just a filename pill — a chat
-                // bubble linking to an image by text alone reads as
-                // broken/half-finished next to any real messaging UI.
-                const thumbBtn = document.createElement("button");
-                thumbBtn.type = "button";
-                thumbBtn.className = "pr-discussion-bubble-image";
-                thumbBtn.title = a.name;
-                thumbBtn.addEventListener("click", () => openPreview(a));
-                const img = document.createElement("img");
-                img.src = a.url;
-                img.alt = a.name;
-                img.addEventListener(
-                  "error",
-                  () => {
-                    const fallback = document.createElement("div");
-                    fallback.className = "pr-img-fallback";
-                    fallback.setAttribute("aria-hidden", "true");
-                    fallback.innerHTML = IMAGE_OFF_ICON;
-                    img.replaceWith(fallback);
-                  },
-                  { once: true },
-                );
-                thumbBtn.appendChild(img);
-                attWrap.appendChild(thumbBtn);
-              } else {
-                const attBtn = document.createElement("button");
-                attBtn.type = "button";
-                attBtn.className = "pr-discussion-bubble-attachment";
-                attBtn.innerHTML = `${FILE_ICON}<span>${esc(a.name)}</span>`;
-                attBtn.addEventListener("click", () => openPreview(a));
-                attWrap.appendChild(attBtn);
-              }
+          if (m.isDeleted) {
+            // Tombstone — kept in place so the thread (and replies quoting
+            // it) still reads in order.
+            bubble.classList.add("pr-deleted");
+            bubble.textContent = "This message was deleted";
+          } else {
+            if (m.message) {
+              const p = document.createElement("p");
+              p.style.margin = "0";
+              p.textContent = m.message;
+              bubble.appendChild(p);
             }
-            bubble.appendChild(attWrap);
+            if (m.attachments.length) bubble.appendChild(buildAttachments(m));
           }
-          appendTo.appendChild(bubble);
+          bubbleRow.appendChild(bubble);
+          if (viewerIsReporter && !m.isDeleted) bubbleRow.appendChild(buildMenu(m));
+          appendTo.appendChild(bubbleRow);
           list.appendChild(row2);
         }
-        list.scrollTop = list.scrollHeight;
+        list.scrollTop = stickToBottom ? list.scrollHeight : previousScroll;
+      }
+
+      /** Reply banner above the composer; replies are reporter-only. */
+      const replyBanner = document.createElement("div");
+      replyBanner.className = "pr-discussion-reply-banner";
+      replyBanner.hidden = true;
+      const replyText = document.createElement("span");
+      replyText.className = "pr-discussion-reply-text";
+      const replyCancel = document.createElement("button");
+      replyCancel.type = "button";
+      replyCancel.className = "pr-discussion-reply-cancel";
+      replyCancel.setAttribute("aria-label", "Cancel reply");
+      replyCancel.innerHTML = CLOSE_X_ICON;
+      replyCancel.addEventListener("click", () => setReplyTo(null));
+      replyBanner.append(replyText, replyCancel);
+      composer.insertBefore(replyBanner, composer.firstChild);
+
+      function setReplyTo(m: DiscussionMessage | null) {
+        replyTo = m;
+        replyBanner.hidden = !m;
+        replyText.textContent = m ? `Replying to ${m.senderName}: ${snippetOf(m)}` : "";
+        if (m) textarea.focus();
       }
 
       function renderPending() {
@@ -2200,8 +2502,10 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
           const sent = await handlers.sendMessage(row.id, {
             message: text,
             attachmentIds: readyAttachmentIds.length ? readyAttachmentIds : undefined,
+            parentId: replyTo?.id,
           });
-          addMessageIfNew(sent);
+          upsertMessage(sent);
+          setReplyTo(null);
           textarea.value = "";
           pending = [];
           renderPending();
