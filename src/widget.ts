@@ -324,8 +324,11 @@ const STYLES = `
   from { transform: translateY(0); }
   to { transform: translateY(100%); }
 }
+/* Same duration AND curve as the opening pr-slide-up, so closing feels as
+   quick as opening — the old ease-in (0.4, 0, 1, 1) barely moved for the
+   first ~200ms, which read as a lag after clicking X. */
 .pr-panel-full-closing {
-  animation: pr-slide-down 0.6s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: pr-slide-down 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 /* The backdrop (.pr-overlay's own rgba(0,0,0,0.8) background) was staying
    fully opaque for the whole slide-down, then cutting to the host page in
@@ -337,7 +340,7 @@ const STYLES = `
   to { background: rgba(0, 0, 0, 0); }
 }
 .pr-overlay-full-closing {
-  animation: pr-overlay-fade-out 0.6s ease-out forwards;
+  animation: pr-overlay-fade-out 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 /* Detail drawer's overlay has no dark scrim at all — the drawer separates
    from the page behind it with pr-panel-drawer's own box-shadow instead of
@@ -388,8 +391,10 @@ const STYLES = `
   from { transform: translateX(0); }
   to { transform: translateX(100%); }
 }
+/* Same duration AND curve as the opening pr-slide-in-right (see
+   .pr-panel-full-closing for why the old ease-in felt laggy). */
 .pr-panel-drawer-closing {
-  animation: pr-slide-out-right 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: pr-slide-out-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 /* Flex column so the Discussion section (always last) can grow into the
    drawer's leftover height instead of leaving a blank gap under a short
