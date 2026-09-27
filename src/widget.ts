@@ -386,6 +386,13 @@ const STYLES = `
 .pr-panel-drawer-closing {
   animation: pr-slide-out-right 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
+/* Flex column so the Discussion section (always last) can grow into the
+   drawer's leftover height instead of leaving a blank gap under a short
+   report — see .pr-discussion-section below. Flex items don't collapse
+   margins, so the title's 4px bottom margin (formerly swallowed by the
+   priority divider's 16px top margin) is zeroed to keep the same spacing. */
+.pr-panel-drawer { display: flex; flex-direction: column; }
+.pr-panel-drawer > .pr-title { margin-bottom: 0; }
 /* Scoped overrides for elements this drawer shares with the Issues table
    and New Issue form (.pr-title, .pr-close, .pr-form-divider, and the
    .pr-badge-* tone classes) — descendant selectors so only this drawer
@@ -851,6 +858,11 @@ const STYLES = `
 /* "mine" stays a plain column (align-end); "theirs" becomes a row so an
    avatar can sit to the left of the name/bubble stack — see
    .pr-discussion-avatar and .pr-discussion-msg-body below. */
+/* Fills the drawer's remaining height; the list scrolls inside it and the
+   composer stays at the bottom. min-height keeps a usable thread when the
+   report above is long (the drawer itself scrolls then). */
+.pr-discussion-section { flex: 1 0 auto; display: flex; flex-direction: column; }
+.pr-discussion-section .pr-discussion-list { flex: 1 1 0; min-height: 200px; max-height: none; }
 .pr-discussion-msg { display: flex; flex-direction: column; max-width: 82%; }
 .pr-discussion-msg.pr-msg-mine { align-self: flex-end; align-items: flex-end; }
 .pr-discussion-msg.pr-msg-theirs { align-self: flex-start; flex-direction: row; align-items: flex-start; gap: 8px; }
@@ -1946,7 +1958,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       currentDiscussionDisconnect = null;
 
       const section = document.createElement("div");
-      section.className = "pr-detail-section";
+      section.className = "pr-detail-section pr-discussion-section";
       const label = document.createElement("span");
       label.className = "pr-detail-section-label";
       label.textContent = "Discussion";
