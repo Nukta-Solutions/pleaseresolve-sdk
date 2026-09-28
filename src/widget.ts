@@ -177,6 +177,39 @@ const IMAGE_OFF_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="no
 </svg>`;
 
 /** lucide-react's real "Paperclip" path data — the Discussion composer's attach button. */
+/** Skeleton rows for the Issues table — cells mirror the real columns. */
+function issuesTableSkeleton(rowCount = 6): string {
+  // Varied widths so the placeholder reads as content, not a grid of bars.
+  const titleWidths = [72, 58, 84, 66, 78, 52];
+  const nameWidths = [60, 74, 52, 68, 58, 70];
+  const rowsHtml = Array.from({ length: rowCount }, (_, i) => `<tr class="pr-skel-row" aria-hidden="true">
+      <td><span class="pr-skel pr-skel-text" style="width:112px"></span></td>
+      <td><span class="pr-skel pr-skel-text" style="width:${titleWidths[i % titleWidths.length]}%;min-width:90px"></span></td>
+      <td><span class="pr-skel pr-skel-text" style="width:${nameWidths[i % nameWidths.length]}px"></span></td>
+      <td><span class="pr-skel pr-skel-pill" style="width:58px"></span></td>
+      <td><span class="pr-skel pr-skel-pill" style="width:72px"></span></td>
+      <td><span class="pr-skel pr-skel-text" style="width:70px"></span></td>
+      <td><span class="pr-skel pr-skel-btn"></span></td>
+    </tr>`).join("");
+  return `<tr class="pr-sr-only"><td colspan="7">Loading issues…</td></tr>${rowsHtml}`;
+}
+
+/** Skeleton messages for the Discussion thread — the real mine/theirs layout. */
+function discussionSkeleton(): string {
+  const theirs = (bubbleWidth: number, metaWidth: number) => `<div class="pr-discussion-msg pr-msg-theirs" aria-hidden="true">
+      <span class="pr-skel pr-skel-avatar"></span>
+      <div class="pr-discussion-msg-body">
+        <span class="pr-skel pr-skel-meta" style="width:${metaWidth}px"></span>
+        <span class="pr-skel pr-skel-bubble" style="width:${bubbleWidth}px"></span>
+      </div>
+    </div>`;
+  const mine = (bubbleWidth: number) => `<div class="pr-discussion-msg pr-msg-mine" aria-hidden="true">
+      <span class="pr-skel pr-skel-meta" style="width:96px"></span>
+      <span class="pr-skel pr-skel-bubble" style="width:${bubbleWidth}px"></span>
+    </div>`;
+  return `<span class="pr-sr-only">Loading discussion…</span>${theirs(180, 140)}${mine(150)}${theirs(220, 120)}`;
+}
+
 const MORE_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>`;
 const PAPERCLIP_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/>
@@ -647,6 +680,8 @@ const STYLES = `
 /* Issues table pagination — client-side, since this widget's public read
    API (listReports) returns every report for the project in one response
    with no page/limit params of its own to page through server-side. */
+/* display:flex would otherwise override the hidden attribute (loading/error states). */
+.pr-pagination[hidden] { display: none; }
 .pr-pagination {
   display: flex;
   align-items: center;
@@ -685,6 +720,34 @@ const STYLES = `
   font-weight: 500;
   color: #1e293b;
 }
+
+/* Skeleton loaders — grey placeholder shapes (with a soft shimmer) shown in
+   place of the Issues table and the Discussion thread while they load, so the
+   layout appears immediately instead of a lone "Loading…" line. Real text for
+   screen readers lives in a .pr-sr-only sibling; aria-busy marks the region. */
+@keyframes pr-shimmer {
+  from { background-position: 100% 50%; }
+  to { background-position: 0 50%; }
+}
+.pr-skel {
+  display: block;
+  background: linear-gradient(90deg, #eceef3 25%, #f6f7f9 37%, #eceef3 63%);
+  background-size: 400% 100%;
+  animation: pr-shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-skel { animation: none; }
+}
+.pr-skel-text { height: 12px; }
+.pr-skel-pill { height: 20px; width: 64px; border-radius: 999px; }
+.pr-skel-btn { height: 30px; width: 72px; border-radius: 999px; }
+.pr-skel-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
+.pr-skel-meta { height: 10px; margin-bottom: 6px; }
+.pr-skel-bubble { height: 38px; border-radius: 14px; }
+.pr-msg-mine .pr-skel-bubble { border-bottom-right-radius: 4px; }
+.pr-msg-theirs .pr-skel-bubble { border-bottom-left-radius: 4px; }
+.pr-table tbody tr.pr-skel-row td { padding-top: 13px; padding-bottom: 13px; }
 
 /* soft badges — variant="soft" color={destructive|warning|primary} from
    llemr's Badge component, at the library's own bg-color/20 opacity. */
@@ -2049,7 +2112,8 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       const list = document.createElement("div");
       list.className = "pr-discussion-list";
       list.setAttribute("aria-live", "polite");
-      list.innerHTML = `<p class="pr-detail-section-empty">Loading discussion…</p>`;
+      list.innerHTML = discussionSkeleton();
+      list.setAttribute("aria-busy", "true");
       section.appendChild(list);
 
       const composer = document.createElement("div");
@@ -2344,6 +2408,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
       function renderMessages(stickToBottom = true) {
         closeOpenMenu?.();
+        list.removeAttribute("aria-busy");
         if (messages.length === 0) {
           list.innerHTML = `<p class="pr-detail-section-empty">No messages yet — say hello.</p>`;
           return;
@@ -2531,6 +2596,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
           renderMessages();
         })
         .catch(() => {
+          list.removeAttribute("aria-busy");
           list.innerHTML = `<p class="pr-detail-section-empty">Couldn't load the discussion.</p>`;
         });
 
@@ -2544,8 +2610,9 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     let loadState: "loading" | "loaded" | "error" = "loading";
 
     function renderRows() {
+      tableWrap.setAttribute("aria-busy", String(loadState === "loading"));
       if (loadState === "loading") {
-        tbody.innerHTML = `<tr><td colspan="7" class="pr-empty">Loading…</td></tr>`;
+        tbody.innerHTML = issuesTableSkeleton();
         pagination.hidden = true;
         return;
       }
