@@ -1049,6 +1049,13 @@ const STYLES = `
   background: transparent; color: #9297a6; font-style: italic;
   border: 1px dashed #d8dbe3;
 }
+.pr-discussion-load-earlier {
+  align-self: center; flex-shrink: 0;
+  border: none; background: transparent; cursor: pointer;
+  padding: 4px 12px; border-radius: 999px;
+  font: inherit; font-size: 12px; color: #6b7080;
+}
+.pr-discussion-load-earlier:hover { background: #eef0f4; color: #171a22; }
 .pr-discussion-quote {
   max-width: 100%; margin-bottom: 4px; padding: 4px 8px;
   font-size: 12px; color: #5b6072; background: #f2f3f7;
@@ -2209,7 +2216,9 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       function addMessageIfNew(msg: DiscussionMessage) {
         if (messages.some((m) => m.id === msg.id)) return;
         messages = [...messages, msg];
-        renderMessages();
+        // Someone else's message arriving live: follow it only if the reader
+        // is already at the newest message, not while they read back.
+        renderMessages(atBottom);
       }
 
       /**
@@ -2430,6 +2439,35 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         return wrap;
       }
 
+      /**
+       * Chunked history: the thread opens on the latest MESSAGE_CHUNK
+       * messages; scrolling to the top of the list (or the "Load earlier
+       * messages" button) reveals the previous chunk, and so on. Tracks how
+       * many of the OLDEST messages are still hidden (null = just the latest
+       * chunk), so a new message arriving at the bottom never pushes an older
+       * one out of view while someone reads back.
+       */
+      const MESSAGE_CHUNK = 10;
+      let hiddenOlder: number | null = null;
+      let atBottom = true;
+      const hiddenCount = () => hiddenOlder ?? Math.max(0, messages.length - MESSAGE_CHUNK);
+
+      function loadEarlier() {
+        const hidden = hiddenCount();
+        if (hidden <= 0) return;
+        // Keep the reader's place: shift by exactly the height added on top.
+        const prevHeight = list.scrollHeight;
+        const prevTop = list.scrollTop;
+        hiddenOlder = Math.max(0, hidden - MESSAGE_CHUNK);
+        renderMessages(false);
+        list.scrollTop = list.scrollHeight - prevHeight + prevTop;
+      }
+
+      list.addEventListener("scroll", () => {
+        atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+        if (list.scrollTop < 48 && hiddenCount() > 0) loadEarlier();
+      });
+
       function renderMessages(stickToBottom = true) {
         closeOpenMenu?.();
         list.removeAttribute("aria-busy");
@@ -2439,7 +2477,19 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         }
         const previousScroll = list.scrollTop;
         list.innerHTML = "";
-        for (const m of messages) {
+        const hidden = hiddenCount();
+        if (hidden > 0) {
+          // Scrolling to the top loads these automatically; the button is the
+          // fallback when a short chunk doesn't fill the list (nothing to
+          // scroll) and for keyboard users.
+          const earlierBtn = document.createElement("button");
+          earlierBtn.type = "button";
+          earlierBtn.className = "pr-discussion-load-earlier";
+          earlierBtn.textContent = `Load earlier messages (${hidden})`;
+          earlierBtn.addEventListener("click", loadEarlier);
+          list.appendChild(earlierBtn);
+        }
+        for (const m of messages.slice(hidden)) {
           const row2 = document.createElement("div");
           row2.className = `pr-discussion-msg ${m.isExternal ? "pr-msg-mine" : "pr-msg-theirs"}`;
 
@@ -2498,6 +2548,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
           list.appendChild(row2);
         }
         list.scrollTop = stickToBottom ? list.scrollHeight : previousScroll;
+        if (stickToBottom) atBottom = true;
       }
 
       /** Reply banner above the composer; replies are reporter-only. */
