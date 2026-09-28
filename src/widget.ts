@@ -1051,11 +1051,16 @@ const STYLES = `
 }
 .pr-discussion-load-earlier {
   align-self: center; flex-shrink: 0;
-  border: none; background: transparent; cursor: pointer;
-  padding: 4px 12px; border-radius: 999px;
-  font: inherit; font-size: 12px; color: #6b7080;
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px; font-size: 12px; color: #6b7080;
 }
-.pr-discussion-load-earlier:hover { background: #eef0f4; color: #171a22; }
+@keyframes pr-spin { to { transform: rotate(360deg); } }
+.pr-spinner {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid #d8dbe3; border-top-color: #3547c4;
+  animation: pr-spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .pr-spinner { animation-duration: 2.4s; } }
 .pr-discussion-quote {
   max-width: 100%; margin-bottom: 4px; padding: 4px 8px;
   font-size: 12px; color: #5b6072; background: #f2f3f7;
@@ -2441,11 +2446,11 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
       /**
        * Chunked history: the thread opens on the latest MESSAGE_CHUNK
-       * messages; scrolling to the top of the list (or the "Load earlier
-       * messages" button) reveals the previous chunk, and so on. Tracks how
-       * many of the OLDEST messages are still hidden (null = just the latest
-       * chunk), so a new message arriving at the bottom never pushes an older
-       * one out of view while someone reads back.
+       * messages; scrolling up to the top of the list shows "Loading earlier
+       * messages…" and reveals the previous chunk automatically, and so on.
+       * Tracks how many of the OLDEST messages are still hidden (null = just
+       * the latest chunk), so a new message arriving at the bottom never
+       * pushes an older one out of view while someone reads back.
        */
       const MESSAGE_CHUNK = 10;
       let hiddenOlder: number | null = null;
@@ -2461,12 +2466,42 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         hiddenOlder = Math.max(0, hidden - MESSAGE_CHUNK);
         renderMessages(false);
         list.scrollTop = list.scrollHeight - prevHeight + prevTop;
+        // Re-check from the restored position (still in view → load again).
+        watchLoadEarlier(list.querySelector<HTMLElement>(".pr-discussion-load-earlier"));
       }
 
       list.addEventListener("scroll", () => {
         atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
-        if (list.scrollTop < 48 && hiddenCount() > 0) loadEarlier();
       });
+
+      // Watches the "Loading earlier messages…" row: whenever it comes into
+      // view (scrolled up to it, or a short chunk doesn't fill the list) the
+      // previous chunk loads after a short pause so the row is actually seen.
+      // Re-attached on every render (the row is rebuilt), which also re-fires
+      // it if the row is still in view after a load.
+      const LOAD_EARLIER_DELAY_MS = 350;
+      let earlierObserver: IntersectionObserver | null = null;
+      let earlierTimer: number | null = null;
+      function watchLoadEarlier(row: HTMLElement | null) {
+        earlierObserver?.disconnect();
+        earlierObserver = null;
+        if (earlierTimer) {
+          window.clearTimeout(earlierTimer);
+          earlierTimer = null;
+        }
+        if (!row) return;
+        earlierObserver = new IntersectionObserver(
+          (entries) => {
+            if (!entries.some((e) => e.isIntersecting) || earlierTimer) return;
+            earlierTimer = window.setTimeout(() => {
+              earlierTimer = null;
+              loadEarlier();
+            }, LOAD_EARLIER_DELAY_MS);
+          },
+          { root: list, threshold: 0 },
+        );
+        earlierObserver.observe(row);
+      }
 
       function renderMessages(stickToBottom = true) {
         closeOpenMenu?.();
@@ -2478,16 +2513,14 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         const previousScroll = list.scrollTop;
         list.innerHTML = "";
         const hidden = hiddenCount();
+        let earlierRow: HTMLElement | null = null;
         if (hidden > 0) {
-          // Scrolling to the top loads these automatically; the button is the
-          // fallback when a short chunk doesn't fill the list (nothing to
-          // scroll) and for keyboard users.
-          const earlierBtn = document.createElement("button");
-          earlierBtn.type = "button";
-          earlierBtn.className = "pr-discussion-load-earlier";
-          earlierBtn.textContent = `Load earlier messages (${hidden})`;
-          earlierBtn.addEventListener("click", loadEarlier);
-          list.appendChild(earlierBtn);
+          // Not a button: reaching it loads the previous chunk on its own.
+          earlierRow = document.createElement("div");
+          earlierRow.className = "pr-discussion-load-earlier";
+          earlierRow.setAttribute("role", "status");
+          earlierRow.innerHTML = `<span class="pr-spinner" aria-hidden="true"></span><span>Loading earlier messages…</span>`;
+          list.appendChild(earlierRow);
         }
         for (const m of messages.slice(hidden)) {
           const row2 = document.createElement("div");
@@ -2549,6 +2582,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         }
         list.scrollTop = stickToBottom ? list.scrollHeight : previousScroll;
         if (stickToBottom) atBottom = true;
+        watchLoadEarlier(earlierRow);
       }
 
       /** Reply banner above the composer; replies are reporter-only. */
