@@ -270,7 +270,7 @@ export async function sendMessage(
   return parseJsonResponse<DiscussionMessage>(res);
 }
 
-/** `PATCH /api/v1/public/reports/:id/messages/:messageId` — reporter edits their own message (10-minute window, server-enforced). */
+/** `PATCH /api/v1/public/reports/:id/messages/:messageId` — reporter edits their own message (15-minute window, server-enforced). */
 export async function updateMessage(
   apiBaseUrl: string,
   apiKey: string,

@@ -135,7 +135,7 @@ destroy();
 | `init(options)` | Mounts the widget. `key` is required; `projectId` and `apiBaseUrl` are optional. |
 | `open()` / `close()` | Opens/closes the built-in form — for a custom trigger button (`widget: false`). |
 | `report(input)` | Submits directly, no UI. Never attaches files (only the form's dropzone can). |
-| `identify(reporter)` | Pre-fills identity (name/email) attached to every later `report()` call. The email also marks who the report's reporter is: only that person gets Reply, and Edit/Delete on their own Discussion messages (edit within 10 min, delete within 15 min of sending). Anyone else viewing can read and post new messages. |
+| `identify(reporter)` | Pre-fills identity (name/email) attached to every later `report()` call. The email also marks who the report's reporter is: only that person gets Reply, and Edit/Delete on their own Discussion messages (edit and delete within 15 minutes of sending). Anyone else viewing can read and post new messages. |
 | `setMetadata(obj)` | Merged into every report's `metadata` from this point on. |
 | `destroy()` | Unmounts the widget and clears all state. |
 

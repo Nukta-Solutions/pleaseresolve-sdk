@@ -11,7 +11,7 @@ export interface WidgetHandlers {
     reportId: string,
     input: { message: string; attachmentIds?: string[]; parentId?: string },
   ) => Promise<DiscussionMessage>;
-  /** Reporter-only: edit own message text (server enforces ownership + 10-minute window). */
+  /** Reporter-only: edit own message text (server enforces ownership + 15-minute window). */
   updateMessage: (reportId: string, messageId: string, message: string) => Promise<DiscussionMessage>;
   /** Reporter-only: delete own message (server enforces ownership + 15-minute window). */
   deleteMessage: (reportId: string, messageId: string) => Promise<void>;
@@ -223,6 +223,10 @@ const SEND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 
 const STYLES = `
 :host { all: initial; }
+/* The hidden attribute must always win. Several containers set display:flex
+   (file list, pagination, …), which silently overrode hidden and left empty
+   bordered boxes on screen. Scoped to this shadow root only. */
+[hidden] { display: none !important; }
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
 .pr-trigger {
@@ -490,10 +494,13 @@ const STYLES = `
   background: #fff;
 }
 .pr-input::placeholder, .pr-textarea::placeholder { color: #94a3b8; }
+/* One focus line, not two: the old 2px outline sat 1px outside the indigo
+   border and read as a double border. A soft halo flush with the border
+   keeps the focus state obvious for keyboard users. */
 .pr-input:focus, .pr-textarea:focus, .pr-select:focus {
-  outline: 2px solid #6366f1;
-  outline-offset: 1px;
+  outline: none;
   border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 .pr-textarea { min-height: 96px; resize: vertical; }
 .pr-select {
@@ -656,7 +663,7 @@ const STYLES = `
   color: #111827;
   background: #fff;
 }
-.pr-search-input:focus { outline: 2px solid #6366f1; outline-offset: 1px; border-color: #6366f1; }
+.pr-search-input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
 .pr-btn-sm {
   height: 36px;
   padding: 0 14px;
@@ -1282,6 +1289,9 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.dataset.prLayer = "form";
+  // Topmost layer: "New Issue" can open this form on top of the Issues
+  // panel (and even the detail drawer), which must stay open underneath.
+  overlay.style.zIndex = "1000003";
   root.appendChild(overlay);
 
   const panel = document.createElement("div");
@@ -1367,7 +1377,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
     closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
-    closeBtn.addEventListener("click", close);
+    closeBtn.addEventListener("click", closeForm);
     panel.appendChild(closeBtn);
 
     const title = document.createElement("h2");
@@ -1402,7 +1412,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     cancelBtn.type = "button";
     cancelBtn.className = "pr-btn pr-btn-secondary";
     cancelBtn.textContent = "Cancel";
-    cancelBtn.addEventListener("click", close);
+    cancelBtn.addEventListener("click", closeForm);
     const submitBtn = document.createElement("button");
     submitBtn.type = "submit";
     submitBtn.className = "pr-btn pr-btn-primary";
@@ -1436,6 +1446,8 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         )
         .then(() => {
           renderSuccess();
+          // Opened from the Issues panel → show the new report there too.
+          if (!issuesOverlay.hidden) reloadIssues?.();
         })
         .catch((err: unknown) => {
           submitBtn.disabled = false;
@@ -1460,7 +1472,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     closeBtn.className = "pr-close";
     closeBtn.setAttribute("aria-label", "Close");
     closeBtn.innerHTML = CLOSE_X_ICON + '<span class="pr-sr-only">Close</span>';
-    closeBtn.addEventListener("click", close);
+    closeBtn.addEventListener("click", closeForm);
     panel.appendChild(closeBtn);
 
     const wrap = document.createElement("div");
@@ -1644,6 +1656,19 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   }
 
   /**
+   * Closes only the New Issue form. When it was opened from the Issues panel
+   * ("New Issue" in its toolbar) that panel stays open underneath, so
+   * Cancel / X / Escape / outside click return the reporter to the list
+   * instead of dropping them back on the host page.
+   */
+  function closeForm() {
+    overlay.hidden = true;
+  }
+
+  /** Set while the Issues panel is open — reloads its list (e.g. after a new report). */
+  let reloadIssues: (() => void) | null = null;
+
+  /**
    * The Issues panel's own X button: plays the pr-slide-down reverse of its
    * opening animation (and fades the backdrop out alongside it) before
    * actually hiding, instead of vanishing instantly like every other close
@@ -1762,10 +1787,9 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     newIssueBtn.type = "button";
     newIssueBtn.className = "pr-btn-sm pr-btn-sm-primary";
     newIssueBtn.innerHTML = `${PLUS_ICON}<span>New Issue</span>`;
-    newIssueBtn.addEventListener("click", () => {
-      close();
-      open();
-    });
+    // Opens the form ON TOP of this panel (closeForm returns here) — it
+    // used to call close() first, which made the whole Issues panel vanish.
+    newIssueBtn.addEventListener("click", () => open());
     toolbar.appendChild(newIssueBtn);
 
     header.appendChild(toolbar);
@@ -2200,7 +2224,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         renderMessages(stickToBottom);
       }
 
-      const EDIT_WINDOW_MS = 10 * 60 * 1000;
+      const EDIT_WINDOW_MS = 15 * 60 * 1000;
       const DELETE_WINDOW_MS = 15 * 60 * 1000;
       const withinWindow = (m: DiscussionMessage, windowMs: number) =>
         Date.now() - new Date(m.createdAt).getTime() <= windowMs;
@@ -2710,6 +2734,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       renderRows();
     });
     refreshBtn.addEventListener("click", () => void load());
+    reloadIssues = () => void load();
 
     void load();
   }
@@ -2725,10 +2750,12 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     // closeDetailAnimated) — Escape while either is open still consumes
     // the keypress (so it doesn't fall through and close what's behind it)
     // but does nothing to that panel itself.
-    if (!previewOverlay.hidden) previewOverlay.hidden = true;
+    // The New Issue form is checked first: it can sit on top of the Issues
+    // panel, and Escape there should close just the form.
+    if (!overlay.hidden) closeForm();
+    else if (!previewOverlay.hidden) previewOverlay.hidden = true;
     else if (!detailOverlay.hidden) return;
     else if (!issuesOverlay.hidden) return;
-    else if (!overlay.hidden) close();
     else if (!menu.hidden) closeMenu();
   }
 
@@ -2742,7 +2769,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     // close them, so a click landing on the empty area around either
     // (target === issuesOverlay / detailOverlay) is intentionally not
     // handled here at all.
-    if (e.target === overlay) close();
+    if (e.target === overlay) closeForm();
   }
 
   function onDocumentClick(e: MouseEvent) {
