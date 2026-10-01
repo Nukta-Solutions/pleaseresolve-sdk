@@ -101,6 +101,8 @@ export interface ReportStatusSummary {
   dueDate: string | null;
   /** The reporter's own submitted text — not staff-internal notes/comments. */
   description: string | null;
+  /** Staff-written note for the client, read-only. null/absent when empty. */
+  developerNotes?: string | null;
   /** Never `reporterEmail` — see public-report.service.ts's `getById` doc comment for why. */
   reporterName: string | null;
   projectName: string | null;

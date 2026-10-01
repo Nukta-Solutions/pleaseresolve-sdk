@@ -1828,9 +1828,10 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
 
     // Client-side only — see the .pr-pagination CSS comment above for why
     // (listReports has no page/limit params to page through server-side).
-    // Matches the backend's own LIST_MAX cap (public-report.service.ts) so
-    // every report the API can ever return for a project fits on one page.
-    const PAGE_SIZE = 100;
+    // Page size is deliberately well below the backend's LIST_MAX cap
+    // (public-report.service.ts) — if they matched, every report would land
+    // on one page and the pager would never have anything to page through.
+    const PAGE_SIZE = 15;
     const pagination = document.createElement("div");
     pagination.className = "pr-pagination";
     issuesPanel.appendChild(pagination);
@@ -2118,6 +2119,23 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         attachSection.appendChild(list);
       }
       detailPanel.appendChild(attachSection);
+
+      // Staff-written note for the client — read-only, and the whole section
+      // is skipped when it's null/empty/whitespace. textContent (not
+      // innerHTML) since this is free text typed by someone else.
+      if (row.developerNotes?.trim()) {
+        const notesSection = document.createElement("div");
+        notesSection.className = "pr-detail-section";
+        const notesLabel = document.createElement("span");
+        notesLabel.className = "pr-detail-section-label";
+        notesLabel.textContent = "Developer Notes";
+        notesSection.appendChild(notesLabel);
+        const notesBody = document.createElement("p");
+        notesBody.className = "pr-detail-section-body";
+        notesBody.textContent = row.developerNotes;
+        notesSection.appendChild(notesBody);
+        detailPanel.appendChild(notesSection);
+      }
 
       buildDiscussion(row);
     }
