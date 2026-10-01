@@ -240,14 +240,14 @@ const STYLES = `
   padding: 12px 18px;
   border: none;
   border-radius: 999px;
-  background: #6366f1;
+  background: #9b5f97;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
-.pr-trigger:hover { background: #4f46e5; }
+.pr-trigger:hover { background: #a56fa1; }
 .pr-trigger[hidden] { display: none; }
 
 .pr-menu {
@@ -276,8 +276,8 @@ const STYLES = `
   cursor: pointer;
   text-align: left;
 }
-.pr-menu-item:hover { background: #f3f4f6; }
-.pr-menu-item svg { color: #6366f1; flex-shrink: 0; }
+.pr-menu-item:hover { background: #de9cb8; color: #260d18; }
+.pr-menu-item svg { color: #955091; flex-shrink: 0; }
 
 /* llemr's real Radix Dialog overlay is bg-black/80 — this was still an
    old, much lighter guess (rgba(15,15,20,0.45)) from before any real
@@ -494,13 +494,13 @@ const STYLES = `
   background: #fff;
 }
 .pr-input::placeholder, .pr-textarea::placeholder { color: #94a3b8; }
-/* One focus line, not two: the old 2px outline sat 1px outside the indigo
+/* One focus line, not two: the old 2px outline sat 1px outside the plum
    border and read as a double border. A soft halo flush with the border
    keeps the focus state obvious for keyboard users. */
 .pr-input:focus, .pr-textarea:focus, .pr-select:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: #9b5f97;
+  box-shadow: 0 0 0 3px rgba(155, 95, 151, 0.15);
 }
 .pr-textarea { min-height: 96px; resize: vertical; }
 .pr-select {
@@ -524,9 +524,9 @@ const STYLES = `
   cursor: pointer;
   border: 1px solid transparent;
 }
-.pr-btn-primary { background: #6366f1; color: #fff; }
-.pr-btn-primary:hover { background: #4f46e5; }
-.pr-btn-primary:disabled { background: #a5a6f6; cursor: not-allowed; }
+.pr-btn-primary { background: #9b5f97; color: #fff; }
+.pr-btn-primary:hover { background: #a56fa1; }
+.pr-btn-primary:disabled { background: #cdafcb; cursor: not-allowed; }
 .pr-btn-secondary { background: #fff; color: #374151; border-color: #d1d5db; }
 .pr-btn-secondary:hover { background: #f9fafb; }
 .pr-error {
@@ -584,8 +584,8 @@ const STYLES = `
   transition: border-color 0.15s, background 0.15s;
 }
 .pr-dropzone:hover, .pr-dropzone.pr-dropzone-active {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.05);
+  border-color: #9b5f97;
+  background: rgba(155, 95, 151, 0.05);
 }
 .pr-dropzone-inner {
   display: flex;
@@ -663,7 +663,7 @@ const STYLES = `
   color: #111827;
   background: #fff;
 }
-.pr-search-input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+.pr-search-input:focus { outline: none; border-color: #9b5f97; box-shadow: 0 0 0 3px rgba(155, 95, 151, 0.15); }
 .pr-btn-sm {
   height: 36px;
   padding: 0 14px;
@@ -676,13 +676,13 @@ const STYLES = `
   gap: 4px;
   white-space: nowrap;
 }
-.pr-btn-sm-outline { background: #fff; color: #374151; border: 1px solid #d1d5db; }
-.pr-btn-sm-outline:hover { background: #f9fafb; }
-.pr-btn-sm-primary { background: #6366f1; color: #fff; border: 1px solid transparent; }
-.pr-btn-sm-primary:hover { background: #4f46e5; }
+.pr-btn-sm-outline { background: #fff; color: #374151; border: 1px solid #cfc9ce; }
+.pr-btn-sm-outline:hover { background: #de9cb8; color: #260d18; }
+.pr-btn-sm-primary { background: #9b5f97; color: #fff; border: 1px solid transparent; }
+.pr-btn-sm-primary:hover { background: #a56fa1; }
 .pr-btn-sm:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 
-.pr-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+.pr-table-wrap { overflow-x: auto; border: 1px solid #cfc9ce; border-radius: 10px; }
 .pr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 /* Issues table pagination — client-side, since this widget's public read
    API (listReports) returns every report for the project in one response
@@ -707,17 +707,21 @@ const STYLES = `
   background: #f8fafc;
   text-align: left;
   padding: 10px 12px;
-  font-weight: 600;
-  color: #475569;
+  font-weight: 500;
+  color: #0b090b;
   white-space: nowrap;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #cfc9ce;
 }
 .pr-table tbody td {
   padding: 10px 12px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #cfc9ce;
   color: #334155;
   vertical-align: middle;
 }
+/* llemr's TableRow: hover:bg-muted/50. */
+.pr-table tbody tr:not(.pr-skel-row):hover { background: #f2f0f2; }
+/* Reported column is text-slate-600 in llemr; the rest stay slate-700. */
+.pr-table tbody td:first-child:not([colspan]) { color: #475569; }
 .pr-table tbody tr:last-child td { border-bottom: none; }
 .pr-table-title {
   max-width: 220px;
@@ -782,15 +786,15 @@ const STYLES = `
   height: 30px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid #6366f1;
+  border: 1px solid #560458;
   background: transparent;
-  color: #6366f1;
+  color: #9b5f97;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
-.pr-btn-view:hover { background: rgba(99, 102, 241, 0.08); }
+.pr-btn-view:hover { background: #de9cb8; color: #260d18; }
 
 /* Report detail drawer — restyled to match the "Main" design reference
    (a Space Grotesk / #3547C4-accent ticket-panel mockup): softer neutrals
@@ -1150,14 +1154,14 @@ const STYLES = `
   padding: 7px 14px;
   border: none;
   border-radius: 8px;
-  background: #3547c4;
+  background: #9b5f97;
   color: #fff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
-.pr-discussion-send-btn:hover { background: #2c39a0; }
-.pr-discussion-send-btn:disabled { background: #3547c4; opacity: 0.45; cursor: not-allowed; }
+.pr-discussion-send-btn:hover { background: #a56fa1; }
+.pr-discussion-send-btn:disabled { background: #9b5f97; opacity: 0.45; cursor: not-allowed; }
 .pr-discussion-live-dot {
   display: inline-block;
   width: 6px;
@@ -1670,7 +1674,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
   /**
    * Closes only the New Issue form. When it was opened from the Issues panel
    * ("New Issue" in its toolbar) that panel stays open underneath, so
-   * Cancel / X / Escape / outside click return the reporter to the list
+   * Cancel / X return the reporter to the list
    * instead of dropping them back on the host page.
    */
   function closeForm() {
@@ -2836,8 +2840,9 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     // the keypress (so it doesn't fall through and close what's behind it)
     // but does nothing to that panel itself.
     // The New Issue form is checked first: it can sit on top of the Issues
-    // panel, and Escape there should close just the form.
-    if (!overlay.hidden) closeForm();
+    // panel, so Escape there is consumed (only X / Cancel close the form)
+    // rather than falling through to what's behind it.
+    if (!overlay.hidden) return;
     else if (!previewOverlay.hidden) previewOverlay.hidden = true;
     else if (!detailOverlay.hidden) return;
     else if (!issuesOverlay.hidden) return;
@@ -2849,12 +2854,17 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
       previewOverlay.hidden = true;
       return;
     }
-    // No outside-click-to-close for the Issues panel or the detail drawer —
-    // only their own X buttons (closeIssuesAnimated / closeDetailAnimated)
-    // close them, so a click landing on the empty area around either
-    // (target === issuesOverlay / detailOverlay) is intentionally not
-    // handled here at all.
-    if (e.target === overlay) closeForm();
+    // No outside-click-to-close for the Issues panel — only its own X button
+    // (closeIssuesAnimated) closes it, so a click landing on the empty area
+    // around it (target === issuesOverlay) is intentionally not handled.
+    // The detail drawer does close on an outside click (same animated close
+    // as its X), and its transparent overlay covers the Issues table, so a
+    // click there closes the drawer instead of reaching the table.
+    if (e.target === detailOverlay) {
+      closeDetailAnimated();
+      return;
+    }
+    // The New Issue form is the same: only its X and Cancel buttons close it.
   }
 
   function onDocumentClick(e: MouseEvent) {
