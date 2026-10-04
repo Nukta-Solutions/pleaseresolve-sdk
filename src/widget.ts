@@ -1507,7 +1507,14 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     wrap.appendChild(body);
     panel.appendChild(wrap);
 
-    window.setTimeout(close, 2500);
+    // Opened from the Issues panel → only dismiss this form so the list stays
+    // open underneath; close() would hide the Issues panel along with it.
+    if (successTimer) window.clearTimeout(successTimer);
+    successTimer = window.setTimeout(() => {
+      successTimer = null;
+      if (issuesOverlay.hidden) close();
+      else closeForm();
+    }, 2500);
   }
 
   function fieldInput(
@@ -1650,7 +1657,14 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     return wrapper;
   }
 
+  /** Pending auto-dismiss of the success screen; cancelled if the form is reopened first. */
+  let successTimer: number | null = null;
+
   function open() {
+    if (successTimer) {
+      window.clearTimeout(successTimer);
+      successTimer = null;
+    }
     closeMenu();
     overlay.hidden = false;
     attachedFiles = [];
