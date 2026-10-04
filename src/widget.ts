@@ -59,13 +59,17 @@ const PRIORITIES: { value: ReportPriority; label: string }[] = [
  * `blocked` reuses "warning" the same conceptual role as llemr's On Hold,
  * `closed` has no llemr equivalent so it gets a neutral tone instead of
  * inventing a color llemr doesn't use).
+ *
+ * Labels must match the dashboard's (frontend reportStatus.utils.ts) exactly so
+ * a client and a developer see the same name: `blocked` is "On Hold" and
+ * `closed` is "Archived" there.
  */
 const STATUS_META: Record<string, { label: string; tone: string }> = {
   new: { label: "New", tone: "pr-badge-destructive" },
   in_progress: { label: "In Progress", tone: "pr-badge-primary" },
   resolved: { label: "Resolved", tone: "pr-badge-resolved" },
-  blocked: { label: "Blocked", tone: "pr-badge-warning" },
-  closed: { label: "Closed", tone: "pr-badge-neutral" },
+  blocked: { label: "On Hold", tone: "pr-badge-warning" },
+  closed: { label: "Archived", tone: "pr-badge-neutral" },
 };
 
 /** Same three tones llemr's own PriorityBadge uses for High/Medium/Low. */
@@ -1503,7 +1507,14 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     wrap.appendChild(body);
     panel.appendChild(wrap);
 
-    window.setTimeout(close, 2500);
+    // Opened from the Issues panel → only dismiss this form so the list stays
+    // open underneath; close() would hide the Issues panel along with it.
+    if (successTimer) window.clearTimeout(successTimer);
+    successTimer = window.setTimeout(() => {
+      successTimer = null;
+      if (issuesOverlay.hidden) close();
+      else closeForm();
+    }, 2500);
   }
 
   function fieldInput(
@@ -1646,7 +1657,14 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
     return wrapper;
   }
 
+  /** Pending auto-dismiss of the success screen; cancelled if the form is reopened first. */
+  let successTimer: number | null = null;
+
   function open() {
+    if (successTimer) {
+      window.clearTimeout(successTimer);
+      successTimer = null;
+    }
     closeMenu();
     overlay.hidden = false;
     attachedFiles = [];
@@ -2758,7 +2776,7 @@ export function mountWidget(handlers: WidgetHandlers): WidgetHandle {
         ? rows.filter(
             (r) =>
               r.title.toLowerCase().includes(q) ||
-              r.status.toLowerCase().includes(q) ||
+              (STATUS_META[r.status]?.label ?? r.status).toLowerCase().includes(q) ||
               r.priority.toLowerCase().includes(q) ||
               (r.reporterName ?? "").toLowerCase().includes(q),
           )
